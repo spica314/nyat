@@ -8,6 +8,42 @@ pub struct SatProblem {
 }
 
 impl SatProblem {
+    pub fn new_from_dimacs(s: &str) -> SatProblem {
+        let s2 = {
+            let mut res = String::new();
+            for ref line in s.lines() {
+                let t = line.to_string();
+                if t.chars().take(1).next() == Some('c') {
+                    continue;
+                }
+                res.push_str(line);
+                res.push('\n');
+            }
+            res
+        };
+        let mut iter = s2.split_whitespace();
+        assert_eq!(iter.next(), Some("p"));
+        assert_eq!(iter.next(), Some("cnf"));
+        let n_variables = iter.next().unwrap().parse::<usize>().unwrap();
+        let n_clauses = iter.next().unwrap().parse::<usize>().unwrap();
+        let mut clauses = vec![];
+        let mut xs = vec![];
+        for ref t in iter {
+            let u = t.parse::<i64>().unwrap();
+            if u == 0 {
+                clauses.push(SatClause(xs.clone()));
+                xs.clear();
+            }
+            else {
+                xs.push(u);
+            }
+        }
+        assert_eq!(clauses.len(), n_clauses);
+        SatProblem {
+            n: n_variables,
+            clauses: clauses,
+        }
+    }
     fn check_assingemnt(&self, assignment: &SatAssignment) -> bool {
         for ref clause in &self.clauses {
             let mut tf = false;
