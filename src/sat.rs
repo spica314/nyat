@@ -193,7 +193,13 @@ fn dfs(problem: &SatProblem, assignment: &mut SatAssignment, i: usize) -> bool {
                 }
                 if ! tf {
                     match unknowns.len() {
-                        0 => continue 'l1,
+                        0 => {
+                            for &i in &edited {
+                                assignment.0[i] = 0;
+                            }
+                            assignment.0[i] = 0;
+                            continue 'l1;
+                        }
                         1 => {
                             let t = unknowns[0];
                             let i = t.abs() as usize;
