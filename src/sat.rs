@@ -1,7 +1,7 @@
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug, Clone, Copy)]
 struct Literal {
     id: usize,
-    sign: bool
+    sign: bool,
 }
 
 impl Literal {
@@ -16,7 +16,7 @@ impl Literal {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 struct Clause(Vec<Literal>);
 
 impl Clause {
@@ -28,8 +28,8 @@ impl Clause {
     }
 }
 
-use std::iter::IntoIterator;
 use std::convert::AsRef;
+use std::iter::IntoIterator;
 use std::ops::Deref;
 
 impl IntoIterator for Clause {
@@ -61,7 +61,7 @@ impl Deref for Clause {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 struct Clauses(Vec<Clause>);
 
 impl Clauses {
@@ -133,14 +133,11 @@ impl SatProblem {
             if u == 0 {
                 clauses.push(Clause(xs.clone()));
                 xs.clear();
-            }
-            else if u > 0 {
+            } else if u > 0 {
                 xs.push(Literal::new(u as usize - 1, true));
-            }
-            else if u < 0 {
+            } else if u < 0 {
                 xs.push(Literal::new(-u as usize - 1, false));
-            }
-            else {
+            } else {
                 unreachable!();
             }
         }
@@ -152,7 +149,11 @@ impl SatProblem {
     }
     pub fn to_dimacs(&self) -> String {
         let mut res = String::new();
-        res.push_str(&format!("p cnf {} {}\n", self.n_variables, self.clauses.num()));
+        res.push_str(&format!(
+            "p cnf {} {}\n",
+            self.n_variables,
+            self.clauses.num()
+        ));
         for ref clause in &self.clauses {
             for &literal in clause.iter() {
                 let t = literal.id() + 1;
@@ -163,9 +164,14 @@ impl SatProblem {
         }
         res
     }
-    pub fn gen_random_sat(n_variables: usize, n_clauses: usize, k_sat: usize, prob_true: f64) -> SatProblem {
-        use rand::prelude::*;
+    pub fn gen_random_sat(
+        n_variables: usize,
+        n_clauses: usize,
+        k_sat: usize,
+        prob_true: f64,
+    ) -> SatProblem {
         use rand::distributions::Uniform;
+        use rand::prelude::*;
         let mut assignments = vec![false; n_variables];
         let mut rng = rand::thread_rng();
         for i in 0..n_variables {
@@ -182,7 +188,11 @@ impl SatProblem {
                         continue 'l1;
                     }
                 }
-                let sign = if xs.len() == 0 || rng.gen::<f64>() < prob_true { assignments[id] } else { !assignments[id] };
+                let sign = if xs.len() == 0 || rng.gen::<f64>() < prob_true {
+                    assignments[id]
+                } else {
+                    !assignments[id]
+                };
                 xs.push(Literal::new(id, sign));
             }
             clauses.push(Clause::new_from_vec(xs));
@@ -201,7 +211,7 @@ impl SatProblem {
                     break;
                 }
             }
-            if ! tf {
+            if !tf {
                 return false;
             }
         }
@@ -209,7 +219,7 @@ impl SatProblem {
     }
 }
 
-#[derive(Debug,PartialEq,Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct SatAssignments(Vec<bool>);
 
 impl SatAssignments {
@@ -248,12 +258,11 @@ pub fn solve_sat(problem: &SatProblem) -> Option<SatAssignments> {
                         truth_of_clause = true;
                         break;
                     }
-                }
-                else {
+                } else {
                     unknowns.push(x);
                 }
             }
-            if ! truth_of_clause {
+            if !truth_of_clause {
                 match unknowns.len() {
                     0 => return None,
                     1 => {
@@ -262,11 +271,11 @@ pub fn solve_sat(problem: &SatProblem) -> Option<SatAssignments> {
                         assignments[i] = Some(t.sign());
                         updated = true;
                     }
-                    _ => {},
+                    _ => {}
                 }
             }
         }
-        if ! updated {
+        if !updated {
             break;
         }
     }
@@ -292,9 +301,9 @@ fn dfs(problem: &SatProblem, assignments: &mut Vec<Option<bool>>, i: usize) -> b
         return problem.check_assingemnt(&assignments);
     }
     if assignments[i].is_some() {
-        return dfs(problem, assignments, i+1);
+        return dfs(problem, assignments, i + 1);
     }
-    'l1: for &tmp_assign in &[true,false] {
+    'l1: for &tmp_assign in &[true, false] {
         assignments[i] = Some(tmp_assign);
         let mut edited = vec![];
         loop {
@@ -308,12 +317,11 @@ fn dfs(problem: &SatProblem, assignments: &mut Vec<Option<bool>>, i: usize) -> b
                             truth_of_clause = true;
                             break;
                         }
-                    }
-                    else {
+                    } else {
                         unknowns.push(x);
                     }
                 }
-                if ! truth_of_clause {
+                if !truth_of_clause {
                     match unknowns.len() {
                         0 => {
                             for &k in &edited {
@@ -329,19 +337,18 @@ fn dfs(problem: &SatProblem, assignments: &mut Vec<Option<bool>>, i: usize) -> b
                             assignments[i] = Some(t.sign());
                             updated = true;
                         }
-                        _ => {},
+                        _ => {}
                     }
                 }
             }
-            if ! updated {
+            if !updated {
                 break;
             }
         }
-        let is_sat = dfs(problem, assignments, i+1);
+        let is_sat = dfs(problem, assignments, i + 1);
         if is_sat {
             return true;
-        }
-        else {
+        } else {
             for &k in &edited {
                 assignments[k] = None;
             }
@@ -351,15 +358,11 @@ fn dfs(problem: &SatProblem, assignments: &mut Vec<Option<bool>>, i: usize) -> b
     false
 }
 
-
-
 #[test]
 fn test_solve_sat_1() {
     let problem = SatProblem {
         n_variables: 1,
-        clauses: Clauses::new_from_vec(vec![
-            Clause::new_from_vec(vec![Literal::new(0,true)]),
-        ]),
+        clauses: Clauses::new_from_vec(vec![Clause::new_from_vec(vec![Literal::new(0, true)])]),
     };
     let res = solve_sat(&problem).unwrap();
     assert!(problem.check_assingemnt(&res));
@@ -369,9 +372,7 @@ fn test_solve_sat_1() {
 fn test_solve_sat_2() {
     let problem = SatProblem {
         n_variables: 1,
-        clauses: Clauses::new_from_vec(vec![
-            Clause::new_from_vec(vec![Literal::new(0,false)]),
-        ]),
+        clauses: Clauses::new_from_vec(vec![Clause::new_from_vec(vec![Literal::new(0, false)])]),
     };
     let res = solve_sat(&problem).unwrap();
     assert!(problem.check_assingemnt(&res));
@@ -381,9 +382,10 @@ fn test_solve_sat_2() {
 fn test_solve_sat_3() {
     let problem = SatProblem {
         n_variables: 2,
-        clauses: Clauses::new_from_vec(vec![
-            Clause::new_from_vec(vec![Literal::new(0,true), Literal::new(1,false)]),
-        ]),
+        clauses: Clauses::new_from_vec(vec![Clause::new_from_vec(vec![
+            Literal::new(0, true),
+            Literal::new(1, false),
+        ])]),
     };
     let res = solve_sat(&problem).unwrap();
     assert!(problem.check_assingemnt(&res));
@@ -393,9 +395,10 @@ fn test_solve_sat_3() {
 fn test_solve_sat_4() {
     let problem = SatProblem {
         n_variables: 2,
-        clauses: Clauses::new_from_vec(vec![
-            Clause::new_from_vec(vec![Literal::new(0,false), Literal::new(1,true)]),
-        ]),
+        clauses: Clauses::new_from_vec(vec![Clause::new_from_vec(vec![
+            Literal::new(0, false),
+            Literal::new(1, true),
+        ])]),
     };
     let res = solve_sat(&problem).unwrap();
     assert!(problem.check_assingemnt(&res));
@@ -405,9 +408,10 @@ fn test_solve_sat_4() {
 fn test_solve_sat_5() {
     let problem = SatProblem {
         n_variables: 2,
-        clauses: Clauses::new_from_vec(vec![
-            Clause::new_from_vec(vec![Literal::new(0,false), Literal::new(1,true)]),
-        ]),
+        clauses: Clauses::new_from_vec(vec![Clause::new_from_vec(vec![
+            Literal::new(0, false),
+            Literal::new(1, true),
+        ])]),
     };
     let res = solve_sat(&problem).unwrap();
     assert!(problem.check_assingemnt(&res));
@@ -417,9 +421,11 @@ fn test_solve_sat_5() {
 fn test_solve_sat_6() {
     let problem = SatProblem {
         n_variables: 3,
-        clauses: Clauses::new_from_vec(vec![
-            Clause::new_from_vec(vec![Literal::new(0,false), Literal::new(1,true), Literal::new(2,false)]),
-        ]),
+        clauses: Clauses::new_from_vec(vec![Clause::new_from_vec(vec![
+            Literal::new(0, false),
+            Literal::new(1, true),
+            Literal::new(2, false),
+        ])]),
     };
     let res = solve_sat(&problem).unwrap();
     assert!(problem.check_assingemnt(&res));
@@ -430,8 +436,8 @@ fn test_solve_sat_7() {
     let problem = SatProblem {
         n_variables: 1,
         clauses: Clauses::new_from_vec(vec![
-            Clause::new_from_vec(vec![Literal::new(0,true)]),
-            Clause::new_from_vec(vec![Literal::new(0,false)]),
+            Clause::new_from_vec(vec![Literal::new(0, true)]),
+            Clause::new_from_vec(vec![Literal::new(0, false)]),
         ]),
     };
     let res = solve_sat(&problem);
@@ -443,11 +449,27 @@ fn test_solve_sat_8() {
     let problem = SatProblem {
         n_variables: 3,
         clauses: Clauses::new_from_vec(vec![
-            Clause::new_from_vec(vec![Literal::new(0,true), Literal::new(1,true), Literal::new(2,false)]),
-            Clause::new_from_vec(vec![Literal::new(0,true), Literal::new(1,false), Literal::new(2,true)]),
-            Clause::new_from_vec(vec![Literal::new(0,false), Literal::new(1,true), Literal::new(2,true)]),
-            Clause::new_from_vec(vec![Literal::new(0,false), Literal::new(1,false), Literal::new(2,false)]),
-            Clause::new_from_vec(vec![Literal::new(2,true)]),
+            Clause::new_from_vec(vec![
+                Literal::new(0, true),
+                Literal::new(1, true),
+                Literal::new(2, false),
+            ]),
+            Clause::new_from_vec(vec![
+                Literal::new(0, true),
+                Literal::new(1, false),
+                Literal::new(2, true),
+            ]),
+            Clause::new_from_vec(vec![
+                Literal::new(0, false),
+                Literal::new(1, true),
+                Literal::new(2, true),
+            ]),
+            Clause::new_from_vec(vec![
+                Literal::new(0, false),
+                Literal::new(1, false),
+                Literal::new(2, false),
+            ]),
+            Clause::new_from_vec(vec![Literal::new(2, true)]),
         ]),
     };
     let res = solve_sat(&problem).unwrap();
