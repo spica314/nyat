@@ -44,6 +44,17 @@ impl SatProblem {
             clauses: clauses,
         }
     }
+    pub fn to_dimacs(&self) -> String {
+        let mut res = String::new();
+        res.push_str(&format!("p cnf {} {}\n", self.n, self.clauses.len()));
+        for ref clause in &self.clauses {
+            for x in &clause.0 {
+                res.push_str(&format!("{} ", x));
+            }
+            res.push_str(&format!("0\n"));
+        }
+        res
+    }
     fn check_assingemnt(&self, assignment: &SatAssignment) -> bool {
         for ref clause in &self.clauses {
             let mut tf = false;
