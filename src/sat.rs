@@ -55,6 +55,35 @@ impl SatProblem {
         }
         res
     }
+    pub fn gen_random_sat(n_variables: usize, n_clauses: usize, k_sat: usize, prob_true: f64) -> SatProblem {
+        use rand::prelude::*;
+        use rand::distributions::Uniform;
+        let mut assignment = SatAssignment(vec![0; n_variables+1]);
+        let mut rng = rand::thread_rng();
+        for i in 1..=n_variables {
+            assignment.0[i] = if rng.gen::<bool>() { 1 } else { -1 };
+        }
+        let mut clauses = vec![];
+        for _ in 0..n_clauses {
+            let mut xs: Vec<i64> = vec![];
+            let dist = Uniform::from(1..=n_variables);
+            'l1: while xs.len() < k_sat {
+                let t = dist.sample(&mut rng);
+                for &x in &xs {
+                    if x.abs() as usize == t {
+                        continue 'l1;
+                    }
+                }
+                let u = t as i64 * if xs.len() == 0 || rng.gen::<f64>() < prob_true { 1 } else { -1 };
+                xs.push(u);
+            }
+            clauses.push(SatClause(xs));
+        }
+        SatProblem {
+            n: n_variables,
+            clauses: clauses,
+        }
+    }
     fn check_assingemnt(&self, assignment: &SatAssignment) -> bool {
         for ref clause in &self.clauses {
             let mut tf = false;
@@ -380,4 +409,14 @@ fn test_solve_sat_9() {
     assert!(problem.check_assingemnt(&res));
     eprintln!("x1..=x8 = {:?}", &res.0[1..=8]);
     eprintln!("problem = {:?}", problem);
+}
+
+#[test]
+fn test_solve_sat_10() {
+    for _ in 0..1 {
+        let problem = SatProblem::gen_random_sat(1000, 3000, 3, 0.2);
+        eprintln!("problem\n{}\n", problem.to_dimacs());
+        let res = solve_sat(&problem).unwrap();
+        assert!(problem.check_assingemnt(&res));
+    }
 }
