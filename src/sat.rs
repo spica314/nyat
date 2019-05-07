@@ -217,6 +217,118 @@ impl SatProblem {
         }
         true
     }
+    pub fn solve(&self) -> Option<SatAssignments> {
+        let mut assignments = vec![None; self.n_variables];
+        loop {
+            let mut updated = false;
+            for ref clause in &self.clauses {
+                let mut truth_of_clause = false;
+                let mut unknowns = vec![];
+                for &x in &clause.0 {
+                    if let Some(assign) = assignments[x.id()] {
+                        if assign == x.sign() {
+                            truth_of_clause = true;
+                            break;
+                        }
+                    } else {
+                        unknowns.push(x);
+                    }
+                }
+                if !truth_of_clause {
+                    match unknowns.len() {
+                        0 => return None,
+                        1 => {
+                            let t = unknowns[0];
+                            let i = t.id();
+                            assignments[i] = Some(t.sign());
+                            updated = true;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            if !updated {
+                break;
+            }
+        }
+        let is_sat = SatProblem::dfs(self, &mut assignments, 0);
+        if is_sat {
+            let xs: Vec<bool> = assignments.iter().map(|&x| x.unwrap()).collect();
+            let res = SatAssignments::new_from_vec(xs);
+            Some(res)
+        } else {
+            None
+        }
+    }
+
+    fn dfs(problem: &SatProblem, assignments: &mut Vec<Option<bool>>, i: usize) -> bool {
+        if i == problem.n_variables {
+            for t in assignments.iter() {
+                if t.is_none() {
+                    return false;
+                }
+            }
+            let xs: Vec<bool> = assignments.iter().map(|&x| x.unwrap()).collect();
+            let assignments = SatAssignments::new_from_vec(xs);
+            return problem.check_assingemnt(&assignments);
+        }
+        if assignments[i].is_some() {
+            return SatProblem::dfs(problem, assignments, i + 1);
+        }
+        'l1: for &tmp_assign in &[true, false] {
+            assignments[i] = Some(tmp_assign);
+            let mut edited = vec![];
+            loop {
+                let mut updated = false;
+                for ref clause in &problem.clauses {
+                    let mut truth_of_clause = false;
+                    let mut unknowns = vec![];
+                    for &x in &clause.0 {
+                        if let Some(assign) = assignments[x.id()] {
+                            if assign == x.sign() {
+                                truth_of_clause = true;
+                                break;
+                            }
+                        } else {
+                            unknowns.push(x);
+                        }
+                    }
+                    if !truth_of_clause {
+                        match unknowns.len() {
+                            0 => {
+                                for &k in &edited {
+                                    assignments[k] = None;
+                                }
+                                assignments[i] = None;
+                                continue 'l1;
+                            }
+                            1 => {
+                                let t = unknowns[0];
+                                let i = t.id;
+                                edited.push(i);
+                                assignments[i] = Some(t.sign());
+                                updated = true;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                if !updated {
+                    break;
+                }
+            }
+            let is_sat = SatProblem::dfs(problem, assignments, i + 1);
+            if is_sat {
+                return true;
+            } else {
+                for &k in &edited {
+                    assignments[k] = None;
+                }
+                assignments[i] = None;
+            }
+        }
+        false
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -245,126 +357,13 @@ impl<I: SliceIndex<[bool]>> IndexMut<I> for SatAssignments {
     }
 }
 
-pub fn solve_sat(problem: &SatProblem) -> Option<SatAssignments> {
-    let mut assignments = vec![None; problem.n_variables];
-    loop {
-        let mut updated = false;
-        for ref clause in &problem.clauses {
-            let mut truth_of_clause = false;
-            let mut unknowns = vec![];
-            for &x in &clause.0 {
-                if let Some(assign) = assignments[x.id()] {
-                    if assign == x.sign() {
-                        truth_of_clause = true;
-                        break;
-                    }
-                } else {
-                    unknowns.push(x);
-                }
-            }
-            if !truth_of_clause {
-                match unknowns.len() {
-                    0 => return None,
-                    1 => {
-                        let t = unknowns[0];
-                        let i = t.id();
-                        assignments[i] = Some(t.sign());
-                        updated = true;
-                    }
-                    _ => {}
-                }
-            }
-        }
-        if !updated {
-            break;
-        }
-    }
-    let is_sat = dfs(problem, &mut assignments, 0);
-    if is_sat {
-        let xs: Vec<bool> = assignments.iter().map(|&x| x.unwrap()).collect();
-        let res = SatAssignments::new_from_vec(xs);
-        Some(res)
-    } else {
-        None
-    }
-}
-
-fn dfs(problem: &SatProblem, assignments: &mut Vec<Option<bool>>, i: usize) -> bool {
-    if i == problem.n_variables {
-        for t in assignments.iter() {
-            if t.is_none() {
-                return false;
-            }
-        }
-        let xs: Vec<bool> = assignments.iter().map(|&x| x.unwrap()).collect();
-        let assignments = SatAssignments::new_from_vec(xs);
-        return problem.check_assingemnt(&assignments);
-    }
-    if assignments[i].is_some() {
-        return dfs(problem, assignments, i + 1);
-    }
-    'l1: for &tmp_assign in &[true, false] {
-        assignments[i] = Some(tmp_assign);
-        let mut edited = vec![];
-        loop {
-            let mut updated = false;
-            for ref clause in &problem.clauses {
-                let mut truth_of_clause = false;
-                let mut unknowns = vec![];
-                for &x in &clause.0 {
-                    if let Some(assign) = assignments[x.id()] {
-                        if assign == x.sign() {
-                            truth_of_clause = true;
-                            break;
-                        }
-                    } else {
-                        unknowns.push(x);
-                    }
-                }
-                if !truth_of_clause {
-                    match unknowns.len() {
-                        0 => {
-                            for &k in &edited {
-                                assignments[k] = None;
-                            }
-                            assignments[i] = None;
-                            continue 'l1;
-                        }
-                        1 => {
-                            let t = unknowns[0];
-                            let i = t.id;
-                            edited.push(i);
-                            assignments[i] = Some(t.sign());
-                            updated = true;
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            if !updated {
-                break;
-            }
-        }
-        let is_sat = dfs(problem, assignments, i + 1);
-        if is_sat {
-            return true;
-        } else {
-            for &k in &edited {
-                assignments[k] = None;
-            }
-            assignments[i] = None;
-        }
-    }
-    false
-}
-
 #[test]
 fn test_solve_sat_1() {
     let problem = SatProblem {
         n_variables: 1,
         clauses: Clauses::new_from_vec(vec![Clause::new_from_vec(vec![Literal::new(0, true)])]),
     };
-    let res = solve_sat(&problem).unwrap();
+    let res = problem.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
 
@@ -374,7 +373,7 @@ fn test_solve_sat_2() {
         n_variables: 1,
         clauses: Clauses::new_from_vec(vec![Clause::new_from_vec(vec![Literal::new(0, false)])]),
     };
-    let res = solve_sat(&problem).unwrap();
+    let res = problem.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
 
@@ -387,7 +386,7 @@ fn test_solve_sat_3() {
             Literal::new(1, false),
         ])]),
     };
-    let res = solve_sat(&problem).unwrap();
+    let res = problem.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
 
@@ -400,7 +399,7 @@ fn test_solve_sat_4() {
             Literal::new(1, true),
         ])]),
     };
-    let res = solve_sat(&problem).unwrap();
+    let res = problem.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
 
@@ -413,7 +412,7 @@ fn test_solve_sat_5() {
             Literal::new(1, true),
         ])]),
     };
-    let res = solve_sat(&problem).unwrap();
+    let res = problem.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
 
@@ -427,7 +426,7 @@ fn test_solve_sat_6() {
             Literal::new(2, false),
         ])]),
     };
-    let res = solve_sat(&problem).unwrap();
+    let res = problem.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
 
@@ -440,7 +439,7 @@ fn test_solve_sat_7() {
             Clause::new_from_vec(vec![Literal::new(0, false)]),
         ]),
     };
-    let res = solve_sat(&problem);
+    let res = problem.solve();
     assert!(res.is_none());
 }
 
@@ -472,7 +471,7 @@ fn test_solve_sat_8() {
             Clause::new_from_vec(vec![Literal::new(2, true)]),
         ]),
     };
-    let res = solve_sat(&problem).unwrap();
+    let res = problem.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
 
@@ -481,7 +480,7 @@ fn test_solve_sat_9() {
     for _ in 0..1 {
         let problem = SatProblem::gen_random_sat(100, 250, 3, 0.2);
         eprintln!("problem\n{}\n", problem.to_dimacs());
-        let res = solve_sat(&problem).unwrap();
+        let res = problem.solve().unwrap();
         assert!(problem.check_assingemnt(&res));
     }
 }
