@@ -26,6 +26,12 @@ impl Clause {
     fn new_from_vec(xs: Vec<Literal>) -> Clause {
         Clause(xs)
     }
+    fn push(&mut self, x: Literal) {
+        self.0.push(x);
+    }
+    fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
 use std::convert::AsRef;
@@ -179,23 +185,23 @@ impl SatProblem {
         }
         let mut clauses = Clauses::new();
         for _ in 0..n_clauses {
-            let mut xs: Vec<Literal> = vec![];
+            let mut clause = Clause::new();
             let dist = Uniform::from(0..n_variables);
-            'l1: while xs.len() < k_sat {
+            'l1: while clause.len() < k_sat {
                 let id = dist.sample(&mut rng);
-                for &x in &xs {
+                for &x in &clause {
                     if x.id() == id {
                         continue 'l1;
                     }
                 }
-                let sign = if xs.len() == 0 || rng.gen::<f64>() < prob_true {
+                let sign = if clause.len() == 0 || rng.gen::<f64>() < prob_true {
                     assignments[id]
                 } else {
                     !assignments[id]
                 };
-                xs.push(Literal::new(id, sign));
+                clause.push(Literal::new(id, sign));
             }
-            clauses.push(Clause::new_from_vec(xs));
+            clauses.push(clause);
         }
         SatProblem {
             n_variables,
