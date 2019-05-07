@@ -298,49 +298,49 @@ impl SatProblem {
                 }
             }
 
-            if ENABLE_WATCHED_LITERALS {
-                assert!(watch[i].len() <= 100);
-                for &clause_id in &watch[i].clone() {
-                    let prev_i_literal = self.clauses[clause_id].get_index(i);
-                    assert!(prev_i_literal.is_some());
-                    let prev_i_literal = prev_i_literal.unwrap();
-                    if !watched[clause_id][prev_i_literal] {
-                        continue;
-                    }
-                    let mut next_i_literal = None;
-                    let mut next_literal_id = None;
-                    for (i_literal, literal) in self.clauses[clause_id].iter().enumerate() {
-                        if literal.id() != i
-                            && assignments[literal.id()].is_none()
-                            && !watched[clause_id][i_literal]
-                        {
-                            next_i_literal = Some(i_literal);
-                            next_literal_id = Some(literal.id());
-                        }
-                    }
-                    if let Some(next_i_literal) = next_i_literal {
-                        let next_literal_id = next_literal_id.unwrap();
-                        assert!(i != next_literal_id);
-                        assert!(prev_i_literal != next_i_literal);
-                        assert!(watched[clause_id][prev_i_literal]);
-                        watched[clause_id][prev_i_literal] = false;
-                        assert!(!watched[clause_id][next_i_literal]);
-                        watched[clause_id][next_i_literal] = true;
-                        watch[i] = watch[i]
-                            .iter()
-                            .filter(|&&x| x != clause_id)
-                            .cloned()
-                            .collect();
-                        watch[next_literal_id].push(clause_id);
-                    }
-                }
-            }
-
             // unit propagation
             use std::collections::VecDeque;
             let mut queue = VecDeque::new();
             queue.push_back(i);
             while let Some(id) = queue.pop_front() {
+                if ENABLE_WATCHED_LITERALS {
+                    assert!(watch[id].len() <= 100);
+                    let visit_clause_ids: Vec<usize> = watch[id].clone();
+                    for &clause_id in &visit_clause_ids {
+                        let prev_i_literal = self.clauses[clause_id].get_index(id);
+                        assert!(prev_i_literal.is_some());
+                        let prev_i_literal = prev_i_literal.unwrap();
+                        if !watched[clause_id][prev_i_literal] {
+                            continue;
+                        }
+                        let mut next_i_literal = None;
+                        let mut next_literal_id = None;
+                        for (i_literal, literal) in self.clauses[clause_id].iter().enumerate() {
+                            if literal.id() != id
+                                && assignments[literal.id()].is_none()
+                                && !watched[clause_id][i_literal]
+                            {
+                                next_i_literal = Some(i_literal);
+                                next_literal_id = Some(literal.id());
+                            }
+                        }
+                        if let Some(next_i_literal) = next_i_literal {
+                            let next_literal_id = next_literal_id.unwrap();
+                            assert!(id != next_literal_id);
+                            assert!(watched[clause_id][prev_i_literal]);
+                            watched[clause_id][prev_i_literal] = false;
+                            assert!(!watched[clause_id][next_i_literal]);
+                            watched[clause_id][next_i_literal] = true;
+                            watch[id] = watch[id]
+                                .iter()
+                                .filter(|&&x| x != clause_id)
+                                .cloned()
+                                .collect();
+                            watch[next_literal_id].push(clause_id);
+                        }
+                    }
+                }
+
                 let watch_id_ids: Vec<usize> = if ENABLE_WATCHED_LITERALS {
                     watch[id].clone()
                 } else {
@@ -389,47 +389,6 @@ impl SatProblem {
                                 assignments[id2] = Some(t.sign());
                                 stack.push((id2, AssignmentState::Propageted));
                                 queue.push_back(id2);
-
-                                if ENABLE_WATCHED_LITERALS {
-                                    let i = id2;
-                                    assert!(watch[i].len() <= 100);
-                                    let visit_clause_ids: Vec<usize> = watch[i].clone();
-                                    for &clause_id in &visit_clause_ids {
-                                        let prev_i_literal = self.clauses[clause_id].get_index(i);
-                                        assert!(prev_i_literal.is_some());
-                                        let prev_i_literal = prev_i_literal.unwrap();
-                                        if !watched[clause_id][prev_i_literal] {
-                                            continue;
-                                        }
-                                        let mut next_i_literal = None;
-                                        let mut next_literal_id = None;
-                                        for (i_literal, literal) in
-                                            self.clauses[clause_id].iter().enumerate()
-                                        {
-                                            if literal.id() != i
-                                                && assignments[literal.id()].is_none()
-                                                && !watched[clause_id][i_literal]
-                                            {
-                                                next_i_literal = Some(i_literal);
-                                                next_literal_id = Some(literal.id());
-                                            }
-                                        }
-                                        if let Some(next_i_literal) = next_i_literal {
-                                            let next_literal_id = next_literal_id.unwrap();
-                                            assert!(i != next_literal_id);
-                                            assert!(watched[clause_id][prev_i_literal]);
-                                            watched[clause_id][prev_i_literal] = false;
-                                            assert!(!watched[clause_id][next_i_literal]);
-                                            watched[clause_id][next_i_literal] = true;
-                                            watch[i] = watch[i]
-                                                .iter()
-                                                .filter(|&&x| x != clause_id)
-                                                .cloned()
-                                                .collect();
-                                            watch[next_literal_id].push(clause_id);
-                                        }
-                                    }
-                                }
                             }
                             _ => {}
                         }
