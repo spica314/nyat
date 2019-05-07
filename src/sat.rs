@@ -349,6 +349,38 @@ impl SatProblem {
                                 .collect();
                             watch[next_literal_id].push(clause_id);
                         }
+                        else {
+                            for (i_literal, literal) in self.clauses[clause_id].iter().enumerate() {
+                                if watched[clause_id][i_literal] && literal.id() != id {
+                                    let id2 = literal.id();
+                                    if assignments[id2].is_none() {
+                                        assignments[id2] = Some(literal.sign());
+                                        stack.push((id2, AssignmentState::Propageted));
+                                        queue.push_back(id2);
+                                    }
+                                    else if assignments[id2].unwrap() != literal.sign() {
+                                        // conflict
+                                        while let Some((k, state)) = stack.pop() {
+                                            match state {
+                                                AssignmentState::First => {
+                                                    i = k;
+                                                    stack.push((k, AssignmentState::Second));
+                                                    continue 'l1;
+                                                }
+                                                AssignmentState::Second => {
+                                                    assignments[k] = None;
+                                                }
+                                                AssignmentState::Propageted => {
+                                                    assignments[k] = None;
+                                                }
+                                            }
+                                        }
+                                        // UNSAT
+                                        return None;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
