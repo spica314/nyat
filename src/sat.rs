@@ -313,6 +313,11 @@ impl SatProblem {
                         if !watched[clause_id][prev_i_literal] {
                             continue;
                         }
+                        if self.clauses[clause_id][prev_i_literal].sign()
+                            == assignments[id].unwrap()
+                        {
+                            continue;
+                        }
                         let mut next_i_literal = None;
                         let mut next_literal_id = None;
                         for (i_literal, literal) in self.clauses[clause_id].iter().enumerate() {
