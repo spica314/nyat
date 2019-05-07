@@ -1,4 +1,4 @@
-const enable_watched_literals: bool = false;
+const ENABLE_WATCHED_LITERALS: bool = false;
 
 #[derive(Debug, Clone, Copy)]
 struct Literal {
@@ -251,7 +251,7 @@ impl SatProblem {
 
         let mut watch: Vec<Vec<usize>> = vec![vec![]; self.n_variables];
         let mut watched: Vec<Vec<bool>> = vec![];
-        if enable_watched_literals {
+        if ENABLE_WATCHED_LITERALS {
             for (clause_id, clause) in self.clauses.iter().enumerate() {
                 let mut xs = vec![false; clause.len()];
                 watched.push(vec![false; clause.len()]);
@@ -290,7 +290,7 @@ impl SatProblem {
                 }
             }
 
-            if enable_watched_literals {
+            if ENABLE_WATCHED_LITERALS {
                 assert!(watch[i].len() <= 100);
                 for &clause_id in &watch[i].clone() {
                     let mut prev_i_literal = None;
@@ -325,7 +325,7 @@ impl SatProblem {
                         watch[i] = watch[i]
                             .iter()
                             .filter(|&&x| x != clause_id)
-                            .map(|&x| x)
+                            .cloned()
                             .collect();
                         watch[next_literal_id].push(clause_id);
                     }
@@ -337,14 +337,14 @@ impl SatProblem {
             let mut queue = VecDeque::new();
             queue.push_back(i);
             while let Some(id) = queue.pop_front() {
-                let watch_id_ids: Vec<usize> = if enable_watched_literals {
-                    watch[id].iter().map(|&x| x).collect()
+                let watch_id_ids: Vec<usize> = if ENABLE_WATCHED_LITERALS {
+                    watch[id].clone()
                 } else {
                     (0..self.clauses.num()).collect()
                 };
                 for &clause_id in &watch_id_ids {
-                    let ref clause = self.clauses[clause_id];
-                    assert!(!enable_watched_literals || clause.iter().any(|x| x.id() == id));
+                    let clause = &self.clauses[clause_id];
+                    assert!(!ENABLE_WATCHED_LITERALS || clause.iter().any(|x| x.id() == id));
                     let mut truth_of_clause = false;
                     let mut unknowns = vec![];
                     for &x in clause {
@@ -386,7 +386,7 @@ impl SatProblem {
                                 stack.push((id2, AssignmentState::Propageted));
                                 queue.push_back(id2);
 
-                                if enable_watched_literals {
+                                if ENABLE_WATCHED_LITERALS {
                                     let i = id2;
                                     assert!(watch[i].len() <= 100);
                                     let visit_clause_ids: Vec<usize> = watch[i].clone();
@@ -427,7 +427,7 @@ impl SatProblem {
                                             watch[i] = watch[i]
                                                 .iter()
                                                 .filter(|&&x| x != clause_id)
-                                                .map(|&x| x)
+                                                .cloned()
                                                 .collect();
                                             watch[next_literal_id].push(clause_id);
                                         }
