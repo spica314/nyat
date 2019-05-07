@@ -300,11 +300,11 @@ impl SatProblem {
 
             // unit propagation
             use std::collections::VecDeque;
-            let mut queue = VecDeque::new();
-            queue.push_back(i);
+            let mut unit_propagation_stack = VecDeque::new();
+            unit_propagation_stack.push_back(i);
             use std::collections::BTreeSet;
             let mut visited = BTreeSet::new();
-            while let Some(id) = queue.pop_front() {
+            while let Some(id) = unit_propagation_stack.pop_back() {
                 if visited.contains(&id) {
                     continue;
                 }
@@ -348,17 +348,15 @@ impl SatProblem {
                                 .cloned()
                                 .collect();
                             watch[next_literal_id].push(clause_id);
-                        }
-                        else {
+                        } else {
                             for (i_literal, literal) in self.clauses[clause_id].iter().enumerate() {
                                 if watched[clause_id][i_literal] && literal.id() != id {
                                     let id2 = literal.id();
                                     if assignments[id2].is_none() {
                                         assignments[id2] = Some(literal.sign());
                                         stack.push((id2, AssignmentState::Propageted));
-                                        queue.push_back(id2);
-                                    }
-                                    else if assignments[id2].unwrap() != literal.sign() {
+                                        unit_propagation_stack.push_back(id2);
+                                    } else if assignments[id2].unwrap() != literal.sign() {
                                         // conflict
                                         while let Some((k, state)) = stack.pop() {
                                             match state {
@@ -431,7 +429,7 @@ impl SatProblem {
                                 let id2 = t.id();
                                 assignments[id2] = Some(t.sign());
                                 stack.push((id2, AssignmentState::Propageted));
-                                queue.push_back(id2);
+                                unit_propagation_stack.push_back(id2);
                             }
                             _ => {}
                         }
