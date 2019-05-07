@@ -42,9 +42,9 @@ impl IntoIterator for Clause {
 
 impl<'a> IntoIterator for &'a Clause {
     type Item = &'a Literal;
-    type IntoIter = std::vec::IntoIter<&'a Literal>;
-    fn into_iter(self) -> std::vec::IntoIter<&'a Literal> {
-        self.into_iter()
+    type IntoIter = std::slice::Iter<'a, Literal>;
+    fn into_iter(self) -> std::slice::Iter<'a, Literal> {
+        self.0.iter()
     }
 }
 
