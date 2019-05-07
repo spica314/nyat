@@ -1,4 +1,4 @@
-const ENABLE_WATCHED_LITERALS: bool = false;
+const ENABLE_WATCHED_LITERALS: bool = true;
 
 #[derive(Debug, Clone, Copy)]
 struct Literal {
@@ -33,6 +33,14 @@ impl Clause {
     }
     fn len(&self) -> usize {
         self.0.len()
+    }
+    fn get_index(&self, id: usize) -> Option<usize> {
+        for (i, literal) in self.iter().enumerate() {
+            if literal.id() == id {
+                return Some(i);
+            }
+        }
+        None
     }
 }
 
@@ -293,12 +301,7 @@ impl SatProblem {
             if ENABLE_WATCHED_LITERALS {
                 assert!(watch[i].len() <= 100);
                 for &clause_id in &watch[i].clone() {
-                    let mut prev_i_literal = None;
-                    for (i_literal, literal) in self.clauses[clause_id].iter().enumerate() {
-                        if literal.id() == i {
-                            prev_i_literal = Some(i_literal);
-                        }
-                    }
+                    let prev_i_literal = self.clauses[clause_id].get_index(i);
                     assert!(prev_i_literal.is_some());
                     let prev_i_literal = prev_i_literal.unwrap();
                     if !watched[clause_id][prev_i_literal] {
@@ -318,6 +321,7 @@ impl SatProblem {
                     if let Some(next_i_literal) = next_i_literal {
                         let next_literal_id = next_literal_id.unwrap();
                         assert!(i != next_literal_id);
+                        assert!(prev_i_literal != next_i_literal);
                         assert!(watched[clause_id][prev_i_literal]);
                         watched[clause_id][prev_i_literal] = false;
                         assert!(!watched[clause_id][next_i_literal]);
@@ -391,14 +395,7 @@ impl SatProblem {
                                     assert!(watch[i].len() <= 100);
                                     let visit_clause_ids: Vec<usize> = watch[i].clone();
                                     for &clause_id in &visit_clause_ids {
-                                        let mut prev_i_literal = None;
-                                        for (i_literal, literal) in
-                                            self.clauses[clause_id].iter().enumerate()
-                                        {
-                                            if literal.id() == i {
-                                                prev_i_literal = Some(i_literal);
-                                            }
-                                        }
+                                        let prev_i_literal = self.clauses[clause_id].get_index(i);
                                         assert!(prev_i_literal.is_some());
                                         let prev_i_literal = prev_i_literal.unwrap();
                                         if !watched[clause_id][prev_i_literal] {
@@ -596,7 +593,7 @@ fn test_solve_sat_8() {
 #[test]
 fn test_solve_sat_9() {
     for _ in 0..1 {
-        let problem = SatProblem::gen_random_sat(3000, 3000, 3, 0.2);
+        let problem = SatProblem::gen_random_sat(40, 40, 4, 0.2);
         // eprintln!("problem\n{}\n", problem.to_dimacs());
         let res = problem.solve().unwrap();
         assert!(problem.check_assingemnt(&res));
