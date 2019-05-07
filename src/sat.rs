@@ -302,7 +302,13 @@ impl SatProblem {
             use std::collections::VecDeque;
             let mut queue = VecDeque::new();
             queue.push_back(i);
+            use std::collections::BTreeSet;
+            let mut visited = BTreeSet::new();
             while let Some(id) = queue.pop_front() {
+                if visited.contains(&id) {
+                    continue;
+                }
+                visited.insert(id);
                 if ENABLE_WATCHED_LITERALS {
                     assert!(watch[id].len() <= 100);
                     let visit_clause_ids: Vec<usize> = watch[id].clone();
