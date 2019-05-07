@@ -230,7 +230,7 @@ impl SatProblem {
             Propageted,
         }
         let mut assignments = vec![None; self.n_variables];
-        let mut stack: Vec<(usize,AssignmentState)> = vec![];
+        let mut stack: Vec<(usize, AssignmentState)> = vec![];
         let n_variables = self.n_variables;
         let mut i = 0;
         stack.push((i, AssignmentState::First));
@@ -257,12 +257,17 @@ impl SatProblem {
                 }
             }
             // unit propagation
-            loop {
-                let mut updated = false;
+            use std::collections::VecDeque;
+            let mut queue = VecDeque::new();
+            queue.push_back(i);
+            while let Some(id) = queue.pop_front() {
                 for clause in &self.clauses {
+                    if !clause.iter().any(|x| x.id() == id) {
+                        continue;
+                    }
                     let mut truth_of_clause = false;
                     let mut unknowns = vec![];
-                    for &x in &clause.0 {
+                    for &x in clause {
                         if let Some(assign) = assignments[x.id()] {
                             if assign == x.sign() {
                                 truth_of_clause = true;
@@ -276,11 +281,11 @@ impl SatProblem {
                         match unknowns.len() {
                             0 => {
                                 // conflict
-                                while let Some((k,state)) = stack.pop() {
+                                while let Some((k, state)) = stack.pop() {
                                     match state {
                                         AssignmentState::First => {
                                             i = k;
-                                            stack.push((k,AssignmentState::Second));
+                                            stack.push((k, AssignmentState::Second));
                                             continue 'l1;
                                         }
                                         AssignmentState::Second => {
@@ -293,27 +298,24 @@ impl SatProblem {
                                 }
                                 // UNSAT
                                 return None;
-                            },
+                            }
                             1 => {
                                 let t = unknowns[0];
-                                let id = t.id();
-                                assignments[id] = Some(t.sign());
-                                stack.push((id,AssignmentState::Propageted));
-                                updated = true;
+                                let id2 = t.id();
+                                assignments[id2] = Some(t.sign());
+                                stack.push((id2, AssignmentState::Propageted));
+                                queue.push_back(id2);
                             }
                             _ => {}
                         }
                     }
-                }
-                if !updated {
-                    break;
                 }
             }
             while i < n_variables && assignments[i].is_some() {
                 i += 1;
             }
             if i < n_variables {
-                stack.push((i,AssignmentState::First));
+                stack.push((i, AssignmentState::First));
             }
         }
     }
