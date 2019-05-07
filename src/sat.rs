@@ -224,68 +224,42 @@ impl SatProblem {
         true
     }
     pub fn solve(&self) -> Option<SatAssignments> {
+        enum AssignmentState {
+            First,
+            Second,
+            Propageted,
+        }
         let mut assignments = vec![None; self.n_variables];
-        loop {
-            let mut updated = false;
-            for clause in &self.clauses {
-                let mut truth_of_clause = false;
-                let mut unknowns = vec![];
-                for &x in &clause.0 {
-                    if let Some(assign) = assignments[x.id()] {
-                        if assign == x.sign() {
-                            truth_of_clause = true;
-                            break;
-                        }
-                    } else {
-                        unknowns.push(x);
-                    }
+        let mut stack: Vec<(usize,AssignmentState)> = vec![];
+        let n_variables = self.n_variables;
+        let mut i = 0;
+        stack.push((i, AssignmentState::First));
+        'l1: loop {
+            // end(SAT)
+            if i == n_variables {
+                let xs: Vec<bool> = assignments.iter().map(|&x| x.unwrap()).collect();
+                let res = SatAssignments::new_from_vec(xs);
+                assert!(self.check_assingemnt(&res));
+                return Some(res);
+            }
+            // try
+            assert!(!stack.is_empty());
+            assert_eq!(i, stack.last().unwrap().0);
+            match stack.last().unwrap().1 {
+                AssignmentState::First => {
+                    assignments[i] = Some(false);
                 }
-                if !truth_of_clause {
-                    match unknowns.len() {
-                        0 => return None,
-                        1 => {
-                            let t = unknowns[0];
-                            let i = t.id();
-                            assignments[i] = Some(t.sign());
-                            updated = true;
-                        }
-                        _ => {}
-                    }
+                AssignmentState::Second => {
+                    assignments[i] = Some(!assignments[i].unwrap());
+                }
+                AssignmentState::Propageted => {
+                    panic!();
                 }
             }
-            if !updated {
-                break;
-            }
-        }
-        let is_sat = SatProblem::dfs(self, &mut assignments, 0);
-        if is_sat {
-            let xs: Vec<bool> = assignments.iter().map(|&x| x.unwrap()).collect();
-            let res = SatAssignments::new_from_vec(xs);
-            Some(res)
-        } else {
-            None
-        }
-    }
-    fn dfs(problem: &SatProblem, assignments: &mut Vec<Option<bool>>, i: usize) -> bool {
-        if i == problem.n_variables {
-            for t in assignments.iter() {
-                if t.is_none() {
-                    return false;
-                }
-            }
-            let xs: Vec<bool> = assignments.iter().map(|&x| x.unwrap()).collect();
-            let assignments = SatAssignments::new_from_vec(xs);
-            return problem.check_assingemnt(&assignments);
-        }
-        if assignments[i].is_some() {
-            return SatProblem::dfs(problem, assignments, i + 1);
-        }
-        'l1: for &tmp_assign in &[true, false] {
-            assignments[i] = Some(tmp_assign);
-            let mut edited = vec![];
+            // unit propagation
             loop {
                 let mut updated = false;
-                for clause in &problem.clauses {
+                for clause in &self.clauses {
                     let mut truth_of_clause = false;
                     let mut unknowns = vec![];
                     for &x in &clause.0 {
@@ -301,17 +275,30 @@ impl SatProblem {
                     if !truth_of_clause {
                         match unknowns.len() {
                             0 => {
-                                for &k in &edited {
-                                    assignments[k] = None;
+                                // conflict
+                                while let Some((k,state)) = stack.pop() {
+                                    match state {
+                                        AssignmentState::First => {
+                                            i = k;
+                                            stack.push((k,AssignmentState::Second));
+                                            continue 'l1;
+                                        }
+                                        AssignmentState::Second => {
+                                            assignments[k] = None;
+                                        }
+                                        AssignmentState::Propageted => {
+                                            assignments[k] = None;
+                                        }
+                                    }
                                 }
-                                assignments[i] = None;
-                                continue 'l1;
-                            }
+                                // UNSAT
+                                return None;
+                            },
                             1 => {
                                 let t = unknowns[0];
-                                let i = t.id;
-                                edited.push(i);
-                                assignments[i] = Some(t.sign());
+                                let id = t.id();
+                                assignments[id] = Some(t.sign());
+                                stack.push((id,AssignmentState::Propageted));
                                 updated = true;
                             }
                             _ => {}
@@ -322,17 +309,13 @@ impl SatProblem {
                     break;
                 }
             }
-            let is_sat = SatProblem::dfs(problem, assignments, i + 1);
-            if is_sat {
-                return true;
-            } else {
-                for &k in &edited {
-                    assignments[k] = None;
-                }
-                assignments[i] = None;
+            while i < n_variables && assignments[i].is_some() {
+                i += 1;
+            }
+            if i < n_variables {
+                stack.push((i,AssignmentState::First));
             }
         }
-        false
     }
 }
 
@@ -483,8 +466,8 @@ fn test_solve_sat_8() {
 #[test]
 fn test_solve_sat_9() {
     for _ in 0..1 {
-        let problem = SatProblem::gen_random_sat(100, 250, 3, 0.2);
-        eprintln!("problem\n{}\n", problem.to_dimacs());
+        let problem = SatProblem::gen_random_sat(10000, 10000, 3, 0.2);
+        // eprintln!("problem\n{}\n", problem.to_dimacs());
         let res = problem.solve().unwrap();
         assert!(problem.check_assingemnt(&res));
     }
