@@ -260,7 +260,6 @@ impl SatProblem {
             None
         }
     }
-
     fn dfs(problem: &SatProblem, assignments: &mut Vec<Option<bool>>, i: usize) -> bool {
         if i == problem.n_variables {
             for t in assignments.iter() {
