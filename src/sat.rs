@@ -249,8 +249,7 @@ impl SatProblem {
         }
         let mut assignments = vec![None; self.n_variables];
 
-        use std::collections::BTreeSet;
-        let mut watch: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); self.n_variables];
+        let mut watch: Vec<Vec<usize>> = vec![vec![]; self.n_variables];
         let mut watched: Vec<Vec<bool>> = vec![];
         if enable_watched_literals {
             for (clause_id, clause) in self.clauses.iter().enumerate() {
@@ -258,7 +257,7 @@ impl SatProblem {
                 watched.push(vec![false; clause.len()]);
                 for (i, literal) in clause.iter().enumerate().take(2) {
                     xs[i] = true;
-                    watch[literal.id()].insert(clause_id);
+                    watch[literal.id()].push(clause_id);
                 }
                 watched.push(xs);
             }
@@ -293,8 +292,7 @@ impl SatProblem {
 
             if enable_watched_literals {
                 assert!(watch[i].len() <= 100);
-                let visit_clause_ids: Vec<usize> = watch[i].iter().map(|&x| x).collect();
-                for &clause_id in &visit_clause_ids {
+                for &clause_id in &watch[i].clone() {
                     let mut prev_i_literal = None;
                     for (i_literal, literal) in self.clauses[clause_id].iter().enumerate() {
                         if literal.id() == i {
@@ -324,8 +322,12 @@ impl SatProblem {
                         watched[clause_id][prev_i_literal] = false;
                         assert!(!watched[clause_id][next_i_literal]);
                         watched[clause_id][next_i_literal] = true;
-                        watch[i].remove(&clause_id);
-                        watch[next_literal_id].insert(clause_id);
+                        watch[i] = watch[i]
+                            .iter()
+                            .filter(|&&x| x != clause_id)
+                            .map(|&x| x)
+                            .collect();
+                        watch[next_literal_id].push(clause_id);
                     }
                 }
             }
@@ -387,8 +389,7 @@ impl SatProblem {
                                 if enable_watched_literals {
                                     let i = id2;
                                     assert!(watch[i].len() <= 100);
-                                    let visit_clause_ids: Vec<usize> =
-                                        watch[i].iter().map(|&x| x).collect();
+                                    let visit_clause_ids: Vec<usize> = watch[i].clone();
                                     for &clause_id in &visit_clause_ids {
                                         let mut prev_i_literal = None;
                                         for (i_literal, literal) in
@@ -423,8 +424,12 @@ impl SatProblem {
                                             watched[clause_id][prev_i_literal] = false;
                                             assert!(!watched[clause_id][next_i_literal]);
                                             watched[clause_id][next_i_literal] = true;
-                                            watch[i].remove(&clause_id);
-                                            watch[next_literal_id].insert(clause_id);
+                                            watch[i] = watch[i]
+                                                .iter()
+                                                .filter(|&&x| x != clause_id)
+                                                .map(|&x| x)
+                                                .collect();
+                                            watch[next_literal_id].push(clause_id);
                                         }
                                     }
                                 }
@@ -591,7 +596,7 @@ fn test_solve_sat_8() {
 #[test]
 fn test_solve_sat_9() {
     for _ in 0..1 {
-        let problem = SatProblem::gen_random_sat(10000, 10000, 3, 0.2);
+        let problem = SatProblem::gen_random_sat(3000, 3000, 3, 0.2);
         // eprintln!("problem\n{}\n", problem.to_dimacs());
         let res = problem.solve().unwrap();
         assert!(problem.check_assingemnt(&res));
