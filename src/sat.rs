@@ -1,3 +1,5 @@
+const enable_watched_literals: bool = false;
+
 #[derive(Debug, Clone, Copy)]
 struct Literal {
     id: usize,
@@ -83,6 +85,9 @@ impl Clauses {
     fn num(&self) -> usize {
         self.0.len()
     }
+    fn iter(&self) -> std::slice::Iter<Clause> {
+        self.0.iter()
+    }
 }
 
 impl IntoIterator for Clauses {
@@ -104,6 +109,19 @@ impl<'a> IntoIterator for &'a Clauses {
 impl AsRef<Clauses> for Clauses {
     fn as_ref(&self) -> &Clauses {
         self
+    }
+}
+
+impl<I: SliceIndex<[Clause]>> Index<I> for Clauses {
+    type Output = <I as SliceIndex<[Clause]>>::Output;
+    fn index(&self, index: I) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl<I: SliceIndex<[Clause]>> IndexMut<I> for Clauses {
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        &mut self.0[index]
     }
 }
 
@@ -230,6 +248,22 @@ impl SatProblem {
             Propageted,
         }
         let mut assignments = vec![None; self.n_variables];
+
+        use std::collections::BTreeSet;
+        let mut watch: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); self.n_variables];
+        let mut watched: Vec<Vec<bool>> = vec![];
+        if enable_watched_literals {
+            for (clause_id, clause) in self.clauses.iter().enumerate() {
+                let mut xs = vec![false; clause.len()];
+                watched.push(vec![false; clause.len()]);
+                for (i, literal) in clause.iter().enumerate().take(2) {
+                    xs[i] = true;
+                    watch[literal.id()].insert(clause_id);
+                }
+                watched.push(xs);
+            }
+        }
+
         let mut stack: Vec<(usize, AssignmentState)> = vec![];
         let n_variables = self.n_variables;
         let mut i = 0;
@@ -256,15 +290,59 @@ impl SatProblem {
                     panic!();
                 }
             }
+
+            if enable_watched_literals {
+                assert!(watch[i].len() <= 100);
+                let visit_clause_ids: Vec<usize> = watch[i].iter().map(|&x| x).collect();
+                for &clause_id in &visit_clause_ids {
+                    let mut prev_i_literal = None;
+                    for (i_literal, literal) in self.clauses[clause_id].iter().enumerate() {
+                        if literal.id() == i {
+                            prev_i_literal = Some(i_literal);
+                        }
+                    }
+                    assert!(prev_i_literal.is_some());
+                    let prev_i_literal = prev_i_literal.unwrap();
+                    if !watched[clause_id][prev_i_literal] {
+                        continue;
+                    }
+                    let mut next_i_literal = None;
+                    let mut next_literal_id = None;
+                    for (i_literal, literal) in self.clauses[clause_id].iter().enumerate() {
+                        if literal.id() != i
+                            && assignments[literal.id()].is_none()
+                            && !watched[clause_id][i_literal]
+                        {
+                            next_i_literal = Some(i_literal);
+                            next_literal_id = Some(literal.id());
+                        }
+                    }
+                    if let Some(next_i_literal) = next_i_literal {
+                        let next_literal_id = next_literal_id.unwrap();
+                        assert!(i != next_literal_id);
+                        assert!(watched[clause_id][prev_i_literal]);
+                        watched[clause_id][prev_i_literal] = false;
+                        assert!(!watched[clause_id][next_i_literal]);
+                        watched[clause_id][next_i_literal] = true;
+                        watch[i].remove(&clause_id);
+                        watch[next_literal_id].insert(clause_id);
+                    }
+                }
+            }
+
             // unit propagation
             use std::collections::VecDeque;
             let mut queue = VecDeque::new();
             queue.push_back(i);
             while let Some(id) = queue.pop_front() {
-                for clause in &self.clauses {
-                    if !clause.iter().any(|x| x.id() == id) {
-                        continue;
-                    }
+                let watch_id_ids: Vec<usize> = if enable_watched_literals {
+                    watch[id].iter().map(|&x| x).collect()
+                } else {
+                    (0..self.clauses.num()).collect()
+                };
+                for &clause_id in &watch_id_ids {
+                    let ref clause = self.clauses[clause_id];
+                    assert!(!enable_watched_literals || clause.iter().any(|x| x.id() == id));
                     let mut truth_of_clause = false;
                     let mut unknowns = vec![];
                     for &x in clause {
@@ -305,6 +383,51 @@ impl SatProblem {
                                 assignments[id2] = Some(t.sign());
                                 stack.push((id2, AssignmentState::Propageted));
                                 queue.push_back(id2);
+
+                                if enable_watched_literals {
+                                    let i = id2;
+                                    assert!(watch[i].len() <= 100);
+                                    let visit_clause_ids: Vec<usize> =
+                                        watch[i].iter().map(|&x| x).collect();
+                                    for &clause_id in &visit_clause_ids {
+                                        let mut prev_i_literal = None;
+                                        for (i_literal, literal) in
+                                            self.clauses[clause_id].iter().enumerate()
+                                        {
+                                            if literal.id() == i {
+                                                prev_i_literal = Some(i_literal);
+                                            }
+                                        }
+                                        assert!(prev_i_literal.is_some());
+                                        let prev_i_literal = prev_i_literal.unwrap();
+                                        if !watched[clause_id][prev_i_literal] {
+                                            continue;
+                                        }
+                                        let mut next_i_literal = None;
+                                        let mut next_literal_id = None;
+                                        for (i_literal, literal) in
+                                            self.clauses[clause_id].iter().enumerate()
+                                        {
+                                            if literal.id() != i
+                                                && assignments[literal.id()].is_none()
+                                                && !watched[clause_id][i_literal]
+                                            {
+                                                next_i_literal = Some(i_literal);
+                                                next_literal_id = Some(literal.id());
+                                            }
+                                        }
+                                        if let Some(next_i_literal) = next_i_literal {
+                                            let next_literal_id = next_literal_id.unwrap();
+                                            assert!(i != next_literal_id);
+                                            assert!(watched[clause_id][prev_i_literal]);
+                                            watched[clause_id][prev_i_literal] = false;
+                                            assert!(!watched[clause_id][next_i_literal]);
+                                            watched[clause_id][next_i_literal] = true;
+                                            watch[i].remove(&clause_id);
+                                            watch[next_literal_id].insert(clause_id);
+                                        }
+                                    }
+                                }
                             }
                             _ => {}
                         }
