@@ -117,7 +117,7 @@ impl SatProblem {
     pub fn new_from_dimacs(s: &str) -> SatProblem {
         let s2 = {
             let mut res = String::new();
-            for ref line in s.lines() {
+            for line in s.lines() {
                 let t = line.to_string();
                 if t.chars().take(1).next() == Some('c') {
                     continue;
@@ -134,7 +134,7 @@ impl SatProblem {
         let n_clauses = iter.next().unwrap().parse::<usize>().unwrap();
         let mut clauses = Clauses::new();
         let mut xs = vec![];
-        for ref t in iter {
+        for t in iter {
             let u = t.parse::<i64>().unwrap();
             if u == 0 {
                 clauses.push(Clause(xs.clone()));
@@ -160,13 +160,13 @@ impl SatProblem {
             self.n_variables,
             self.clauses.num()
         ));
-        for ref clause in &self.clauses {
+        for clause in &self.clauses {
             for &literal in clause.iter() {
                 let t = literal.id() + 1;
                 let u = t as i64 * if literal.sign() { 1 } else { -1 };
                 res.push_str(&format!("{} ", u));
             }
-            res.push_str(&format!("0\n"));
+            res.push_str("0\n");
         }
         res
     }
@@ -180,8 +180,8 @@ impl SatProblem {
         use rand::prelude::*;
         let mut assignments = vec![false; n_variables];
         let mut rng = rand::thread_rng();
-        for i in 0..n_variables {
-            assignments[i] = rng.gen::<bool>();
+        for assignment in assignments.iter_mut() {
+            *assignment = rng.gen::<bool>();
         }
         let mut clauses = Clauses::new();
         for _ in 0..n_clauses {
@@ -209,7 +209,7 @@ impl SatProblem {
         }
     }
     fn check_assingemnt(&self, assignment: &SatAssignments) -> bool {
-        for ref clause in &self.clauses {
+        for clause in &self.clauses {
             let mut tf = false;
             for &x in &clause.0 {
                 if assignment[x.id()] == x.sign() {
@@ -227,7 +227,7 @@ impl SatProblem {
         let mut assignments = vec![None; self.n_variables];
         loop {
             let mut updated = false;
-            for ref clause in &self.clauses {
+            for clause in &self.clauses {
                 let mut truth_of_clause = false;
                 let mut unknowns = vec![];
                 for &x in &clause.0 {
@@ -285,7 +285,7 @@ impl SatProblem {
             let mut edited = vec![];
             loop {
                 let mut updated = false;
-                for ref clause in &problem.clauses {
+                for clause in &problem.clauses {
                     let mut truth_of_clause = false;
                     let mut unknowns = vec![];
                     for &x in &clause.0 {
