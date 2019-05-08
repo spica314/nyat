@@ -269,6 +269,7 @@ impl SatProblem {
                 watched.push(xs);
             }
         }
+        assert_eq!(watched.len(), self.clauses.num());
 
         let mut stack: Vec<(usize, AssignmentState)> = vec![];
         let n_variables = self.n_variables;
@@ -309,7 +310,6 @@ impl SatProblem {
                 }
                 visited.insert(id);
                 if ENABLE_WATCHED_LITERALS {
-                    assert!(watch[id].len() <= 100);
                     let visit_clause_ids: Vec<usize> = watch[id].clone();
                     for &clause_id in &visit_clause_ids {
                         let prev_i_literal = self.clauses[clause_id].get_index(id);
