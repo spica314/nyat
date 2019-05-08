@@ -262,7 +262,6 @@ impl SatProblem {
         if ENABLE_WATCHED_LITERALS {
             for (clause_id, clause) in self.clauses.iter().enumerate() {
                 let mut xs = vec![false; clause.len()];
-                watched.push(vec![false; clause.len()]);
                 for (i, literal) in clause.iter().enumerate().take(2) {
                     xs[i] = true;
                     watch[literal.id()].push(clause_id);
@@ -425,6 +424,9 @@ impl SatProblem {
                                 return None;
                             }
                             1 => {
+                                if ENABLE_WATCHED_LITERALS && clause.len() >= 2 {
+                                    panic!();
+                                }
                                 let t = unknowns[0];
                                 let id2 = t.id();
                                 assignments[id2] = Some(t.sign());
@@ -592,8 +594,8 @@ fn test_solve_sat_8() {
 
 #[test]
 fn test_solve_sat_9() {
-    for _ in 0..1 {
-        let problem = SatProblem::gen_random_sat(40, 40, 4, 0.2);
+    for _ in 0..1000 {
+        let problem = SatProblem::gen_random_sat(10000, 10000, 4, 0.2);
         // eprintln!("problem\n{}\n", problem.to_dimacs());
         let res = problem.solve().unwrap();
         assert!(problem.check_assingemnt(&res));
