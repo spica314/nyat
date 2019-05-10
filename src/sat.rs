@@ -275,7 +275,6 @@ impl SatProblem {
                 break;
             }
         }
-        eprintln!("assign_unit_clause: res = {:?}", res);
         Some(res)
     }
     pub fn solve(&self) -> Option<SatAssignments> {
@@ -307,6 +306,9 @@ impl SatProblem {
         let mut stack: Vec<(usize, AssignmentState)> = vec![];
         let n_variables = self.n_variables;
         let mut i = 0;
+        while i < n_variables && assignments[i].is_some() {
+            i += 1;
+        }
         stack.push((i, AssignmentState::First));
         'l1: loop {
             // end(SAT)
