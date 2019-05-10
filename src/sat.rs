@@ -362,7 +362,7 @@ impl SatProblem {
                         let mut next_literal_id = None;
                         for (i_literal, literal) in self.clauses[clause_id].iter().enumerate() {
                             if literal.id() != id
-                                && assignments[literal.id()].is_none()
+                                && assignments[literal.id()] != Some(!literal.sign())
                                 && !watched[clause_id][i_literal]
                             {
                                 next_i_literal = Some(i_literal);
