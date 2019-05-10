@@ -321,22 +321,25 @@ impl<'a> SatSolver<'a> {
 
         let mut stack: Vec<(usize, AssignmentState)> = vec![];
         let n_variables = self.problem.n_variables;
+        {
         let mut i = 0;
         while i < n_variables && assignments[i].is_some() {
             i += 1;
         }
-        stack.push((i, AssignmentState::First));
-        'l1: loop {
-            // end(SAT)
             if i == n_variables {
+            // end(SAT)
+                assert_eq!(i, n_variables);
                 let xs: Vec<bool> = assignments.iter().map(|&x| x.unwrap()).collect();
                 let res = SatAssignments::new_from_vec(xs);
                 assert!(self.problem.check_assingemnt(&res));
                 return Some(res);
             }
+            stack.push((i, AssignmentState::First));
+        }
+        'l1: loop {
             // try
             assert!(!stack.is_empty());
-            assert_eq!(i, stack.last().unwrap().0);
+            let i = stack.last().unwrap().0;
             match stack.last().unwrap().1 {
                 AssignmentState::First => {
                     assignments[i] = Some(false);
@@ -377,7 +380,9 @@ impl<'a> SatSolver<'a> {
                         }
                         let mut next_i_literal = None;
                         let mut next_literal_id = None;
-                        for (i_literal, literal) in self.problem.clauses[clause_id].iter().enumerate() {
+                        for (i_literal, literal) in
+                            self.problem.clauses[clause_id].iter().enumerate()
+                        {
                             if literal.id() != id
                                 && assignments[literal.id()] != Some(!literal.sign())
                                 && !watched[clause_id][i_literal]
@@ -400,7 +405,9 @@ impl<'a> SatSolver<'a> {
                                 .collect();
                             watch[next_literal_id].push(clause_id);
                         } else {
-                            for (i_literal, literal) in self.problem.clauses[clause_id].iter().enumerate() {
+                            for (i_literal, literal) in
+                                self.problem.clauses[clause_id].iter().enumerate()
+                            {
                                 if watched[clause_id][i_literal] && literal.id() != id {
                                     let id2 = literal.id();
                                     if assignments[id2].is_none() {
@@ -412,7 +419,6 @@ impl<'a> SatSolver<'a> {
                                         while let Some((k, state)) = stack.pop() {
                                             match state {
                                                 AssignmentState::First => {
-                                                    i = k;
                                                     stack.push((k, AssignmentState::Second));
                                                     continue 'l1;
                                                 }
@@ -460,7 +466,6 @@ impl<'a> SatSolver<'a> {
                                 while let Some((k, state)) = stack.pop() {
                                     match state {
                                         AssignmentState::First => {
-                                            i = k;
                                             stack.push((k, AssignmentState::Second));
                                             continue 'l1;
                                         }
@@ -490,11 +495,19 @@ impl<'a> SatSolver<'a> {
                     }
                 }
             }
+            let mut i = i;
             while i < n_variables && assignments[i].is_some() {
                 i += 1;
             }
             if i < n_variables {
                 stack.push((i, AssignmentState::First));
+            } else {
+                // end(SAT)
+                assert_eq!(i, n_variables);
+                let xs: Vec<bool> = assignments.iter().map(|&x| x.unwrap()).collect();
+                let res = SatAssignments::new_from_vec(xs);
+                assert!(self.problem.check_assingemnt(&res));
+                return Some(res);
             }
         }
     }
