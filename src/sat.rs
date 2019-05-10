@@ -249,11 +249,23 @@ impl SatProblem {
         }
         true
     }
+}
+
+pub struct SatSolver<'a> {
+    problem: &'a SatProblem,
+}
+
+impl<'a> SatSolver<'a> {
+    pub fn new(problem: &'a SatProblem) -> SatSolver {
+        SatSolver {
+            problem,
+        }
+    }
     pub fn assign_unit_clause(&self) -> Option<Vec<Option<bool>>> {
-        let mut res = vec![None; self.n_variables];
+        let mut res = vec![None; self.problem.n_variables];
         loop {
             let mut updated = false;
-            'l1: for clause in &self.clauses {
+            'l1: for clause in &self.problem.clauses {
                 let mut unknowns = vec![];
                 for literal in clause {
                     if res[literal.id()].is_none() {
@@ -289,10 +301,10 @@ impl SatProblem {
         assignments.as_ref()?;
         let mut assignments = assignments.unwrap();
 
-        let mut watch: Vec<Vec<usize>> = vec![vec![]; self.n_variables];
+        let mut watch: Vec<Vec<usize>> = vec![vec![]; self.problem.n_variables];
         let mut watched: Vec<Vec<bool>> = vec![];
         if ENABLE_WATCHED_LITERALS {
-            for (clause_id, clause) in self.clauses.iter().enumerate() {
+            for (clause_id, clause) in self.problem.clauses.iter().enumerate() {
                 if clause.len() >= 2 {
                     let mut xs = vec![false; clause.len()];
                     for (i, literal) in clause.iter().enumerate().take(2) {
@@ -304,11 +316,11 @@ impl SatProblem {
                     watched.push(vec![]);
                 }
             }
-            assert_eq!(watched.len(), self.clauses.num());
+            assert_eq!(watched.len(), self.problem.clauses.num());
         }
 
         let mut stack: Vec<(usize, AssignmentState)> = vec![];
-        let n_variables = self.n_variables;
+        let n_variables = self.problem.n_variables;
         let mut i = 0;
         while i < n_variables && assignments[i].is_some() {
             i += 1;
@@ -319,7 +331,7 @@ impl SatProblem {
             if i == n_variables {
                 let xs: Vec<bool> = assignments.iter().map(|&x| x.unwrap()).collect();
                 let res = SatAssignments::new_from_vec(xs);
-                assert!(self.check_assingemnt(&res));
+                assert!(self.problem.check_assingemnt(&res));
                 return Some(res);
             }
             // try
@@ -351,21 +363,21 @@ impl SatProblem {
                 if ENABLE_WATCHED_LITERALS {
                     let visit_clause_ids: Vec<usize> = watch[id].clone();
                     for &clause_id in &visit_clause_ids {
-                        assert!(self.clauses[clause_id].len() != 1);
-                        let prev_i_literal = self.clauses[clause_id].get_index(id);
+                        assert!(self.problem.clauses[clause_id].len() != 1);
+                        let prev_i_literal = self.problem.clauses[clause_id].get_index(id);
                         assert!(prev_i_literal.is_some());
                         let prev_i_literal = prev_i_literal.unwrap();
                         if !watched[clause_id][prev_i_literal] {
                             continue;
                         }
-                        if self.clauses[clause_id][prev_i_literal].sign()
+                        if self.problem.clauses[clause_id][prev_i_literal].sign()
                             == assignments[id].unwrap()
                         {
                             continue;
                         }
                         let mut next_i_literal = None;
                         let mut next_literal_id = None;
-                        for (i_literal, literal) in self.clauses[clause_id].iter().enumerate() {
+                        for (i_literal, literal) in self.problem.clauses[clause_id].iter().enumerate() {
                             if literal.id() != id
                                 && assignments[literal.id()] != Some(!literal.sign())
                                 && !watched[clause_id][i_literal]
@@ -388,7 +400,7 @@ impl SatProblem {
                                 .collect();
                             watch[next_literal_id].push(clause_id);
                         } else {
-                            for (i_literal, literal) in self.clauses[clause_id].iter().enumerate() {
+                            for (i_literal, literal) in self.problem.clauses[clause_id].iter().enumerate() {
                                 if watched[clause_id][i_literal] && literal.id() != id {
                                     let id2 = literal.id();
                                     if assignments[id2].is_none() {
@@ -424,10 +436,10 @@ impl SatProblem {
                 let watch_id_ids: Vec<usize> = if ENABLE_WATCHED_LITERALS {
                     watch[id].clone()
                 } else {
-                    (0..self.clauses.num()).collect()
+                    (0..self.problem.clauses.num()).collect()
                 };
                 for &clause_id in &watch_id_ids {
-                    let clause = &self.clauses[clause_id];
+                    let clause = &self.problem.clauses[clause_id];
                     assert!(!ENABLE_WATCHED_LITERALS || clause.iter().any(|x| x.id() == id));
                     let mut truth_of_clause = false;
                     let mut unknowns = vec![];
@@ -533,7 +545,8 @@ fn test_solve_sat_1() {
         n_variables: 1,
         clauses: Clauses::new_from_vec(vec![Clause::new_from_vec(vec![Literal::new(0, true)])]),
     };
-    let res = problem.solve().unwrap();
+    let solver = SatSolver::new(&problem);
+    let res = solver.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
 
@@ -543,7 +556,8 @@ fn test_solve_sat_2() {
         n_variables: 1,
         clauses: Clauses::new_from_vec(vec![Clause::new_from_vec(vec![Literal::new(0, false)])]),
     };
-    let res = problem.solve().unwrap();
+    let solver = SatSolver::new(&problem);
+    let res = solver.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
 
@@ -556,7 +570,8 @@ fn test_solve_sat_3() {
             Literal::new(1, false),
         ])]),
     };
-    let res = problem.solve().unwrap();
+    let solver = SatSolver::new(&problem);
+    let res = solver.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
 
@@ -569,7 +584,8 @@ fn test_solve_sat_4() {
             Literal::new(1, true),
         ])]),
     };
-    let res = problem.solve().unwrap();
+    let solver = SatSolver::new(&problem);
+    let res = solver.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
 
@@ -582,7 +598,8 @@ fn test_solve_sat_5() {
             Literal::new(1, true),
         ])]),
     };
-    let res = problem.solve().unwrap();
+    let solver = SatSolver::new(&problem);
+    let res = solver.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
 
@@ -596,7 +613,8 @@ fn test_solve_sat_6() {
             Literal::new(2, false),
         ])]),
     };
-    let res = problem.solve().unwrap();
+    let solver = SatSolver::new(&problem);
+    let res = solver.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
 
@@ -609,7 +627,8 @@ fn test_solve_sat_7() {
             Clause::new_from_vec(vec![Literal::new(0, false)]),
         ]),
     };
-    let res = problem.solve();
+    let solver = SatSolver::new(&problem);
+    let res = solver.solve();
     assert!(res.is_none());
 }
 
@@ -641,7 +660,8 @@ fn test_solve_sat_8() {
             Clause::new_from_vec(vec![Literal::new(2, true)]),
         ]),
     };
-    let res = problem.solve().unwrap();
+    let solver = SatSolver::new(&problem);
+    let res = solver.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
 
@@ -651,7 +671,8 @@ fn test_solve_sat_9() {
     for _ in 0..1000 {
         let problem = SatProblem::gen_random_sat(10000, 10000, 4, 0.2);
         // eprintln!("problem\n{}\n", problem.to_dimacs());
-        let res = problem.solve().unwrap();
+        let solver = SatSolver::new(&problem);
+        let res = solver.solve().unwrap();
         assert!(problem.check_assingemnt(&res));
     }
 }
