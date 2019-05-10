@@ -352,6 +352,7 @@ impl SatProblem {
                 if ENABLE_WATCHED_LITERALS {
                     let visit_clause_ids: Vec<usize> = watch[id].clone();
                     for &clause_id in &visit_clause_ids {
+                        assert!(self.clauses[clause_id].len() != 1);
                         let prev_i_literal = self.clauses[clause_id].get_index(id);
                         assert!(prev_i_literal.is_some());
                         let prev_i_literal = prev_i_literal.unwrap();
