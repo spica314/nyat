@@ -293,12 +293,16 @@ impl SatProblem {
         let mut watched: Vec<Vec<bool>> = vec![];
         if ENABLE_WATCHED_LITERALS {
             for (clause_id, clause) in self.clauses.iter().enumerate() {
-                let mut xs = vec![false; clause.len()];
-                for (i, literal) in clause.iter().enumerate().take(2) {
-                    xs[i] = true;
-                    watch[literal.id()].push(clause_id);
+                if clause.len() >= 2 {
+                    let mut xs = vec![false; clause.len()];
+                    for (i, literal) in clause.iter().enumerate().take(2) {
+                        xs[i] = true;
+                        watch[literal.id()].push(clause_id);
+                    }
+                    watched.push(xs);
+                } else {
+                    watched.push(vec![]);
                 }
-                watched.push(xs);
             }
         }
         assert_eq!(watched.len(), self.clauses.num());
