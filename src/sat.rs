@@ -646,6 +646,7 @@ fn test_solve_sat_8() {
 }
 
 #[test]
+#[ignore]
 fn test_solve_sat_9() {
     for _ in 0..1000 {
         let problem = SatProblem::gen_random_sat(10000, 10000, 4, 0.2);
