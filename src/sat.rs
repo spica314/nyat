@@ -249,13 +249,46 @@ impl SatProblem {
         }
         true
     }
+    pub fn assign_unit_clause(&self) -> Option<Vec<Option<bool>>> {
+        let mut res = vec![None; self.n_variables];
+        loop {
+            let mut updated = false;
+            'l1: for clause in &self.clauses {
+                let mut unknowns = vec![];
+                for literal in clause {
+                    if res[literal.id()].is_none() {
+                        unknowns.push(literal);
+                    } else if res[literal.id()] == Some(literal.sign()) {
+                        continue 'l1;
+                    }
+                }
+                if unknowns.len() == 0 {
+                    return None;
+                }
+                if unknowns.len() == 1 {
+                    let literal = unknowns[0];
+                    res[literal.id()] = Some(literal.sign());
+                    updated = true;
+                }
+            }
+            if !updated {
+                break;
+            }
+        }
+        eprintln!("assign_unit_clause: res = {:?}", res);
+        Some(res)
+    }
     pub fn solve(&self) -> Option<SatAssignments> {
         enum AssignmentState {
             First,
             Second,
             Propageted,
         }
-        let mut assignments = vec![None; self.n_variables];
+        let assignments = self.assign_unit_clause();
+        if assignments.is_none() {
+            return None;
+        }
+        let mut assignments = assignments.unwrap();
 
         let mut watch: Vec<Vec<usize>> = vec![vec![]; self.n_variables];
         let mut watched: Vec<Vec<bool>> = vec![];
