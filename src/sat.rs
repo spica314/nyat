@@ -305,8 +305,8 @@ impl SatProblem {
                     watched.push(vec![]);
                 }
             }
+            assert_eq!(watched.len(), self.clauses.num());
         }
-        assert_eq!(watched.len(), self.clauses.num());
 
         let mut stack: Vec<(usize, AssignmentState)> = vec![];
         let n_variables = self.n_variables;
