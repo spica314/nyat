@@ -262,7 +262,7 @@ impl SatProblem {
                         continue 'l1;
                     }
                 }
-                if unknowns.len() == 0 {
+                if unknowns.is_empty() {
                     return None;
                 }
                 if unknowns.len() == 1 {
@@ -285,9 +285,8 @@ impl SatProblem {
             Propageted,
         }
         let assignments = self.assign_unit_clause();
-        if assignments.is_none() {
-            return None;
-        }
+        // UNSAT
+        assignments.as_ref()?;
         let mut assignments = assignments.unwrap();
 
         let mut watch: Vec<Vec<usize>> = vec![vec![]; self.n_variables];
