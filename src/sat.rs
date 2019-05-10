@@ -1,6 +1,6 @@
 const ENABLE_WATCHED_LITERALS: bool = true;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Literal {
     id: usize,
     sign: bool,
@@ -278,6 +278,7 @@ impl SatProblem {
         Some(res)
     }
     pub fn solve(&self) -> Option<SatAssignments> {
+        #[derive(Debug)]
         enum AssignmentState {
             First,
             Second,
