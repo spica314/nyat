@@ -455,6 +455,19 @@ impl SatAssignments {
     fn new_from_vec(xs: Vec<bool>) -> SatAssignments {
         SatAssignments(xs)
     }
+    pub fn to_dimacs(&self) -> String {
+        let mut res = String::new();
+        for i in 0..self.0.len() {
+            let x = self.0[i];
+            if !x {
+                res.push_str(&format!("-{} ", i + 1));
+            } else {
+                res.push_str(&format!("{} ", i + 1));
+            }
+        }
+        res.push_str("0");
+        res
+    }
 }
 
 use std::ops::Index;
