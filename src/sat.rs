@@ -265,16 +265,16 @@ impl TaggedClause {
             watched,
         }
     }
-    fn clause<'a>(&'a self) -> &'a Clause {
+    fn clause(&self) -> &Clause {
         &self.clause
     }
     fn learnt(&self) -> bool {
         self.learnt
     }
-    fn watched<'a>(&'a self) -> &'a [Literal; 2] {
+    fn watched(&self) -> &[Literal; 2] {
         &self.watched
     }
-    fn watched_mut<'a>(&'a mut self) -> &'a mut [Literal; 2] {
+    fn watched_mut(&mut self) -> &mut [Literal; 2] {
         &mut self.watched
     }
 }
@@ -458,8 +458,7 @@ impl<'a> SatSolver<'a> {
                             assert!(id != next_literal_id);
                             assert!(watched[prev_i_literal_i].id() == id);
                             assert!(watched[prev_i_literal_i].id() != next_literal_id);
-                            self.clauses[clause_id].watched[prev_i_literal_i] =
-                                next_literal.clone();
+                            self.clauses[clause_id].watched[prev_i_literal_i] = *next_literal;
                             self.watch[id] = self.watch[id]
                                 .iter()
                                 .filter(|&&x| x != clause_id)
