@@ -251,35 +251,82 @@ impl SatProblem {
     }
 }
 
+struct TaggedClause {
+    clause: Clause,
+    learnt: bool,
+    watched: [Literal; 2],
+}
+
+impl TaggedClause {
+    fn new(clause: Clause, learnt: bool, watched: [Literal; 2]) -> TaggedClause {
+        TaggedClause {
+            clause,
+            learnt,
+            watched,
+        }
+    }
+    fn clause<'a>(&'a self) -> &'a Clause {
+        &self.clause
+    }
+    fn learnt(&self) -> bool {
+        self.learnt
+    }
+    fn watched<'a>(&'a self) -> &'a [Literal; 2] {
+        &self.watched
+    }
+    fn watched_mut<'a>(&'a mut self) -> &'a mut [Literal; 2] {
+        &mut self.watched
+    }
+}
+
+#[derive(Debug)]
+enum AssignmentState {
+    First,
+    Second,
+    Propageted,
+}
+
 pub struct SatSolver<'a> {
     problem: &'a SatProblem,
+    clauses: Vec<TaggedClause>,
+    assignments: Vec<Option<bool>>,
+    watch: Vec<Vec<usize>>,
+    dpll_stack: Vec<(usize, AssignmentState)>,
 }
 
 impl<'a> SatSolver<'a> {
     pub fn new(problem: &'a SatProblem) -> SatSolver {
+        let clauses: Vec<TaggedClause> = problem
+            .clauses
+            .iter()
+            .map(|x| TaggedClause::new(x.clone(), false, [x[0], x[0]]))
+            .collect();
         SatSolver {
             problem,
+            clauses,
+            assignments: vec![None; problem.n_variables],
+            watch: vec![vec![]; problem.n_variables],
+            dpll_stack: vec![],
         }
     }
-    pub fn assign_unit_clause(&self) -> Option<Vec<Option<bool>>> {
-        let mut res = vec![None; self.problem.n_variables];
+    pub fn assign_unit_clause(&mut self) -> bool {
         loop {
             let mut updated = false;
-            'l1: for clause in &self.problem.clauses {
+            'l1: for tagged_clause in &self.clauses {
                 let mut unknowns = vec![];
-                for literal in clause {
-                    if res[literal.id()].is_none() {
+                for literal in tagged_clause.clause() {
+                    if self.assignments[literal.id()].is_none() {
                         unknowns.push(literal);
-                    } else if res[literal.id()] == Some(literal.sign()) {
+                    } else if self.assignments[literal.id()] == Some(literal.sign()) {
                         continue 'l1;
                     }
                 }
                 if unknowns.is_empty() {
-                    return None;
+                    return false;
                 }
                 if unknowns.len() == 1 {
                     let literal = unknowns[0];
-                    res[literal.id()] = Some(literal.sign());
+                    self.assignments[literal.id()] = Some(literal.sign());
                     updated = true;
                 }
             }
@@ -287,65 +334,64 @@ impl<'a> SatSolver<'a> {
                 break;
             }
         }
-        Some(res)
+        true
     }
-    pub fn solve(&self) -> Option<SatAssignments> {
-        #[derive(Debug)]
-        enum AssignmentState {
-            First,
-            Second,
-            Propageted,
+    pub fn solve(&mut self) -> Option<SatAssignments> {
+        //let assignments = self.assign_unit_clause();
+        let success = self.assign_unit_clause();
+        if !success {
+            // UNSAT
+            return None;
         }
-        let assignments = self.assign_unit_clause();
-        // UNSAT
-        assignments.as_ref()?;
-        let mut assignments = assignments.unwrap();
+        //assignments.as_ref()?;
+        //let mut assignments = assignments.unwrap();
 
-        let mut watch: Vec<Vec<usize>> = vec![vec![]; self.problem.n_variables];
-        let mut watched: Vec<Vec<bool>> = vec![];
+        //let mut watch: Vec<Vec<usize>> = vec![vec![]; self.problem.n_variables];
+        //let mut watched: Vec<Vec<bool>> = vec![];
         if ENABLE_WATCHED_LITERALS {
-            for (clause_id, clause) in self.problem.clauses.iter().enumerate() {
+            for (clause_id, tagged_clause) in self.clauses.iter_mut().enumerate() {
+                let clause = tagged_clause.clause();
                 if clause.len() >= 2 {
                     let mut xs = vec![false; clause.len()];
                     for (i, literal) in clause.iter().enumerate().take(2) {
                         xs[i] = true;
-                        watch[literal.id()].push(clause_id);
+                        self.watch[literal.id()].push(clause_id);
                     }
-                    watched.push(xs);
+                    *tagged_clause.watched_mut() = [clause[0], clause[1]];
                 } else {
-                    watched.push(vec![]);
+                    *tagged_clause.watched_mut() = [clause[0], clause[0]];
                 }
             }
-            assert_eq!(watched.len(), self.problem.clauses.num());
+            //assert_eq!(watched.len(), self.problem.clauses.num());
         }
 
-        let mut stack: Vec<(usize, AssignmentState)> = vec![];
+        //let mut stack: Vec<(usize, AssignmentState)> = vec![];
         let n_variables = self.problem.n_variables;
         {
-        let mut i = 0;
-        while i < n_variables && assignments[i].is_some() {
-            i += 1;
-        }
+            let mut i = 0;
+            while i < n_variables && self.assignments[i].is_some() {
+                i += 1;
+            }
             if i == n_variables {
-            // end(SAT)
+                // end(SAT)
                 assert_eq!(i, n_variables);
-                let xs: Vec<bool> = assignments.iter().map(|&x| x.unwrap()).collect();
+                let xs: Vec<bool> = self.assignments.iter().map(|&x| x.unwrap()).collect();
                 let res = SatAssignments::new_from_vec(xs);
                 assert!(self.problem.check_assingemnt(&res));
                 return Some(res);
             }
-            stack.push((i, AssignmentState::First));
+            self.dpll_stack.push((i, AssignmentState::First));
         }
         'l1: loop {
             // try
-            assert!(!stack.is_empty());
-            let i = stack.last().unwrap().0;
-            match stack.last().unwrap().1 {
+            assert!(!self.dpll_stack.is_empty());
+            let i = self.dpll_stack.last().unwrap().0;
+            match self.dpll_stack.last().unwrap().1 {
                 AssignmentState::First => {
-                    assignments[i] = Some(false);
+                    self.assignments[i] = Some(false);
                 }
                 AssignmentState::Second => {
-                    assignments[i] = Some(!assignments[i].unwrap());
+                    self.assignments[i] = Some(!self.assignments[i].unwrap());
                 }
                 AssignmentState::Propageted => {
                     panic!();
@@ -364,83 +410,88 @@ impl<'a> SatSolver<'a> {
                 }
                 visited.insert(id);
                 if ENABLE_WATCHED_LITERALS {
-                    let visit_clause_ids: Vec<usize> = watch[id].clone();
+                    let visit_clause_ids: Vec<usize> = self.watch[id].clone();
                     for &clause_id in &visit_clause_ids {
-                        assert!(self.problem.clauses[clause_id].len() != 1);
-                        let prev_i_literal = self.problem.clauses[clause_id].get_index(id);
+                        let tagged_clause = &self.clauses[clause_id];
+                        let clause = tagged_clause.clause();
+                        let watched = tagged_clause.watched();
+                        assert!(clause.len() != 1);
+                        let prev_i_literal = clause.get_index(id);
                         assert!(prev_i_literal.is_some());
                         let prev_i_literal = prev_i_literal.unwrap();
+                        let prev_i_literal_i = if watched[0].id() == id {
+                            0
+                        } else if watched[1].id() == id {
+                            1
+                        } else {
+                            continue;
+                        };
+                        /*
                         if !watched[clause_id][prev_i_literal] {
                             continue;
                         }
-                        if self.problem.clauses[clause_id][prev_i_literal].sign()
-                            == assignments[id].unwrap()
+                        */
+                        if self.clauses[clause_id].clause()[prev_i_literal].sign()
+                            == self.assignments[id].unwrap()
                         {
                             continue;
                         }
-                        let mut next_i_literal = None;
-                        let mut next_literal_id = None;
-                        for (i_literal, literal) in
-                            self.problem.clauses[clause_id].iter().enumerate()
-                        {
+                        let mut next_literal = None;
+                        for literal in clause.iter() {
+                            assert!(watched[0].id() == id || watched[1].id() == id);
                             if literal.id() != id
-                                && assignments[literal.id()] != Some(!literal.sign())
-                                && !watched[clause_id][i_literal]
+                                && self.assignments[literal.id()] != Some(!literal.sign())
+                                && (watched[0].id() != id || watched[1].id() != literal.id())
+                                && (watched[1].id() != id || watched[0].id() != literal.id())
                             {
-                                next_i_literal = Some(i_literal);
-                                next_literal_id = Some(literal.id());
+                                next_literal = Some(literal);
                             }
                         }
-                        if let Some(next_i_literal) = next_i_literal {
-                            let next_literal_id = next_literal_id.unwrap();
+                        if let Some(next_literal) = next_literal {
+                            let next_literal_id = next_literal.id();
                             assert!(id != next_literal_id);
-                            assert!(watched[clause_id][prev_i_literal]);
-                            watched[clause_id][prev_i_literal] = false;
-                            assert!(!watched[clause_id][next_i_literal]);
-                            watched[clause_id][next_i_literal] = true;
-                            watch[id] = watch[id]
+                            assert!(watched[prev_i_literal_i].id() == id);
+                            assert!(watched[prev_i_literal_i].id() != next_literal_id);
+                            self.clauses[clause_id].watched[prev_i_literal_i] =
+                                next_literal.clone();
+                            self.watch[id] = self.watch[id]
                                 .iter()
                                 .filter(|&&x| x != clause_id)
                                 .cloned()
                                 .collect();
-                            watch[next_literal_id].push(clause_id);
+                            self.watch[next_literal_id].push(clause_id);
                         } else {
-                            for (i_literal, literal) in
-                                self.problem.clauses[clause_id].iter().enumerate()
-                            {
-                                if watched[clause_id][i_literal] && literal.id() != id {
-                                    let id2 = literal.id();
-                                    if assignments[id2].is_none() {
-                                        assignments[id2] = Some(literal.sign());
-                                        stack.push((id2, AssignmentState::Propageted));
-                                        unit_propagation_stack.push_back(id2);
-                                    } else if assignments[id2].unwrap() != literal.sign() {
-                                        // conflict
-                                        while let Some((k, state)) = stack.pop() {
-                                            match state {
-                                                AssignmentState::First => {
-                                                    stack.push((k, AssignmentState::Second));
-                                                    continue 'l1;
-                                                }
-                                                AssignmentState::Second => {
-                                                    assignments[k] = None;
-                                                }
-                                                AssignmentState::Propageted => {
-                                                    assignments[k] = None;
-                                                }
-                                            }
+                            let literal2 = watched[1 - prev_i_literal_i];
+                            let id2 = literal2.id();
+                            if self.assignments[id2].is_none() {
+                                self.assignments[id2] = Some(literal2.sign());
+                                self.dpll_stack.push((id2, AssignmentState::Propageted));
+                                unit_propagation_stack.push_back(id2);
+                            } else if self.assignments[id2].unwrap() != literal2.sign() {
+                                // conflict
+                                while let Some((k, state)) = self.dpll_stack.pop() {
+                                    match state {
+                                        AssignmentState::First => {
+                                            self.dpll_stack.push((k, AssignmentState::Second));
+                                            continue 'l1;
                                         }
-                                        // UNSAT
-                                        return None;
+                                        AssignmentState::Second => {
+                                            self.assignments[k] = None;
+                                        }
+                                        AssignmentState::Propageted => {
+                                            self.assignments[k] = None;
+                                        }
                                     }
                                 }
+                                // UNSAT
+                                return None;
                             }
                         }
                     }
                 }
 
                 let watch_id_ids: Vec<usize> = if ENABLE_WATCHED_LITERALS {
-                    watch[id].clone()
+                    self.watch[id].clone()
                 } else {
                     (0..self.problem.clauses.num()).collect()
                 };
@@ -450,7 +501,7 @@ impl<'a> SatSolver<'a> {
                     let mut truth_of_clause = false;
                     let mut unknowns = vec![];
                     for &x in clause {
-                        if let Some(assign) = assignments[x.id()] {
+                        if let Some(assign) = self.assignments[x.id()] {
                             if assign == x.sign() {
                                 truth_of_clause = true;
                                 break;
@@ -463,17 +514,17 @@ impl<'a> SatSolver<'a> {
                         match unknowns.len() {
                             0 => {
                                 // conflict
-                                while let Some((k, state)) = stack.pop() {
+                                while let Some((k, state)) = self.dpll_stack.pop() {
                                     match state {
                                         AssignmentState::First => {
-                                            stack.push((k, AssignmentState::Second));
+                                            self.dpll_stack.push((k, AssignmentState::Second));
                                             continue 'l1;
                                         }
                                         AssignmentState::Second => {
-                                            assignments[k] = None;
+                                            self.assignments[k] = None;
                                         }
                                         AssignmentState::Propageted => {
-                                            assignments[k] = None;
+                                            self.assignments[k] = None;
                                         }
                                     }
                                 }
@@ -486,8 +537,8 @@ impl<'a> SatSolver<'a> {
                                 }
                                 let t = unknowns[0];
                                 let id2 = t.id();
-                                assignments[id2] = Some(t.sign());
-                                stack.push((id2, AssignmentState::Propageted));
+                                self.assignments[id2] = Some(t.sign());
+                                self.dpll_stack.push((id2, AssignmentState::Propageted));
                                 unit_propagation_stack.push_back(id2);
                             }
                             _ => {}
@@ -496,15 +547,15 @@ impl<'a> SatSolver<'a> {
                 }
             }
             let mut i = i;
-            while i < n_variables && assignments[i].is_some() {
+            while i < n_variables && self.assignments[i].is_some() {
                 i += 1;
             }
             if i < n_variables {
-                stack.push((i, AssignmentState::First));
+                self.dpll_stack.push((i, AssignmentState::First));
             } else {
                 // end(SAT)
                 assert_eq!(i, n_variables);
-                let xs: Vec<bool> = assignments.iter().map(|&x| x.unwrap()).collect();
+                let xs: Vec<bool> = self.assignments.iter().map(|&x| x.unwrap()).collect();
                 let res = SatAssignments::new_from_vec(xs);
                 assert!(self.problem.check_assingemnt(&res));
                 return Some(res);
@@ -558,7 +609,7 @@ fn test_solve_sat_1() {
         n_variables: 1,
         clauses: Clauses::new_from_vec(vec![Clause::new_from_vec(vec![Literal::new(0, true)])]),
     };
-    let solver = SatSolver::new(&problem);
+    let mut solver = SatSolver::new(&problem);
     let res = solver.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
@@ -569,7 +620,7 @@ fn test_solve_sat_2() {
         n_variables: 1,
         clauses: Clauses::new_from_vec(vec![Clause::new_from_vec(vec![Literal::new(0, false)])]),
     };
-    let solver = SatSolver::new(&problem);
+    let mut solver = SatSolver::new(&problem);
     let res = solver.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
@@ -583,7 +634,7 @@ fn test_solve_sat_3() {
             Literal::new(1, false),
         ])]),
     };
-    let solver = SatSolver::new(&problem);
+    let mut solver = SatSolver::new(&problem);
     let res = solver.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
@@ -597,7 +648,7 @@ fn test_solve_sat_4() {
             Literal::new(1, true),
         ])]),
     };
-    let solver = SatSolver::new(&problem);
+    let mut solver = SatSolver::new(&problem);
     let res = solver.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
@@ -611,7 +662,7 @@ fn test_solve_sat_5() {
             Literal::new(1, true),
         ])]),
     };
-    let solver = SatSolver::new(&problem);
+    let mut solver = SatSolver::new(&problem);
     let res = solver.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
@@ -626,7 +677,7 @@ fn test_solve_sat_6() {
             Literal::new(2, false),
         ])]),
     };
-    let solver = SatSolver::new(&problem);
+    let mut solver = SatSolver::new(&problem);
     let res = solver.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
@@ -640,7 +691,7 @@ fn test_solve_sat_7() {
             Clause::new_from_vec(vec![Literal::new(0, false)]),
         ]),
     };
-    let solver = SatSolver::new(&problem);
+    let mut solver = SatSolver::new(&problem);
     let res = solver.solve();
     assert!(res.is_none());
 }
@@ -673,7 +724,7 @@ fn test_solve_sat_8() {
             Clause::new_from_vec(vec![Literal::new(2, true)]),
         ]),
     };
-    let solver = SatSolver::new(&problem);
+    let mut solver = SatSolver::new(&problem);
     let res = solver.solve().unwrap();
     assert!(problem.check_assingemnt(&res));
 }
@@ -684,7 +735,7 @@ fn test_solve_sat_9() {
     for _ in 0..1000 {
         let problem = SatProblem::gen_random_sat(10000, 10000, 4, 0.2);
         // eprintln!("problem\n{}\n", problem.to_dimacs());
-        let solver = SatSolver::new(&problem);
+        let mut solver = SatSolver::new(&problem);
         let res = solver.solve().unwrap();
         assert!(problem.check_assingemnt(&res));
     }
