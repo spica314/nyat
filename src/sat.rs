@@ -1,5 +1,3 @@
-const ENABLE_WATCHED_LITERALS: bool = true;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Literal {
     id: usize,
@@ -361,19 +359,18 @@ impl<'a> SatSolver<'a> {
             // UNSAT
             return None;
         }
-        if ENABLE_WATCHED_LITERALS {
-            for (clause_id, tagged_clause) in self.clauses.iter_mut().enumerate() {
-                let clause = tagged_clause.clause();
-                if clause.len() >= 2 {
-                    let mut xs = vec![false; clause.len()];
-                    for (i, literal) in clause.iter().enumerate().take(2) {
-                        xs[i] = true;
-                        self.watch[literal.id()].push(clause_id);
-                    }
-                    *tagged_clause.watched_mut() = [clause[0], clause[1]];
-                } else {
-                    *tagged_clause.watched_mut() = [clause[0], clause[0]];
+
+        for (clause_id, tagged_clause) in self.clauses.iter_mut().enumerate() {
+            let clause = tagged_clause.clause();
+            if clause.len() >= 2 {
+                let mut xs = vec![false; clause.len()];
+                for (i, literal) in clause.iter().enumerate().take(2) {
+                    xs[i] = true;
+                    self.watch[literal.id()].push(clause_id);
                 }
+                *tagged_clause.watched_mut() = [clause[0], clause[1]];
+            } else {
+                *tagged_clause.watched_mut() = [clause[0], clause[0]];
             }
         }
 
@@ -420,115 +417,67 @@ impl<'a> SatSolver<'a> {
                     continue;
                 }
                 visited.insert(id);
-                if ENABLE_WATCHED_LITERALS {
-                    let visit_clause_ids: Vec<usize> = self.watch[id].clone();
-                    for &clause_id in &visit_clause_ids {
-                        let tagged_clause = &self.clauses[clause_id];
-                        let clause = tagged_clause.clause();
-                        let watched = tagged_clause.watched();
-                        assert!(clause.len() != 1);
-                        let prev_i_literal = clause.get_index(id);
-                        assert!(prev_i_literal.is_some());
-                        let prev_i_literal = prev_i_literal.unwrap();
-                        let prev_i_literal_i = if watched[0].id() == id {
-                            0
-                        } else if watched[1].id() == id {
-                            1
-                        } else {
-                            continue;
-                        };
-                        if self.clauses[clause_id].clause()[prev_i_literal].sign()
-                            == self.assignments[id].unwrap()
-                        {
-                            continue;
-                        }
-                        let mut next_literal = None;
-                        for literal in clause.iter() {
-                            assert!(watched[0].id() == id || watched[1].id() == id);
-                            if literal.id() != id
-                                && self.assignments[literal.id()] != Some(!literal.sign())
-                                && (watched[0].id() != id || watched[1].id() != literal.id())
-                                && (watched[1].id() != id || watched[0].id() != literal.id())
-                            {
-                                next_literal = Some(literal);
-                            }
-                        }
-                        if let Some(next_literal) = next_literal {
-                            let next_literal_id = next_literal.id();
-                            assert!(id != next_literal_id);
-                            assert!(watched[prev_i_literal_i].id() == id);
-                            assert!(watched[prev_i_literal_i].id() != next_literal_id);
-                            self.clauses[clause_id].watched[prev_i_literal_i] = *next_literal;
-                            self.watch[id] = self.watch[id]
-                                .iter()
-                                .filter(|&&x| x != clause_id)
-                                .cloned()
-                                .collect();
-                            self.watch[next_literal_id].push(clause_id);
-                        } else {
-                            let literal2 = watched[1 - prev_i_literal_i];
-                            let id2 = literal2.id();
-                            if self.assignments[id2].is_none() {
-                                self.assignments[id2] = Some(literal2.sign());
-                                self.dpll_stack.push((id2, AssignmentState::Propageted));
-                                unit_propagation_stack.push_back(id2);
-                            } else if self.assignments[id2].unwrap() != literal2.sign() {
-                                // conflict
-                                let succeeded = self.try_backtrack();
-                                if succeeded {
-                                    continue 'l1;
-                                } else {
-                                    // UNSAT
-                                    return None;
-                                }
-                            }
-                        }
-                    }
-                }
 
-                let watch_id_ids: Vec<usize> = if ENABLE_WATCHED_LITERALS {
-                    self.watch[id].clone()
-                } else {
-                    (0..self.problem.clauses.num()).collect()
-                };
-                for &clause_id in &watch_id_ids {
-                    let clause = &self.problem.clauses[clause_id];
-                    assert!(!ENABLE_WATCHED_LITERALS || clause.iter().any(|x| x.id() == id));
-                    let mut truth_of_clause = false;
-                    let mut unknowns = vec![];
-                    for &x in clause {
-                        if let Some(assign) = self.assignments[x.id()] {
-                            if assign == x.sign() {
-                                truth_of_clause = true;
-                                break;
-                            }
-                        } else {
-                            unknowns.push(x);
+                let visit_clause_ids: Vec<usize> = self.watch[id].clone();
+                for &clause_id in &visit_clause_ids {
+                    let tagged_clause = &self.clauses[clause_id];
+                    let clause = tagged_clause.clause();
+                    let watched = tagged_clause.watched();
+                    assert!(clause.len() != 1);
+                    let prev_i_literal = clause.get_index(id);
+                    assert!(prev_i_literal.is_some());
+                    let prev_i_literal = prev_i_literal.unwrap();
+                    let prev_i_literal_i = if watched[0].id() == id {
+                        0
+                    } else if watched[1].id() == id {
+                        1
+                    } else {
+                        continue;
+                    };
+                    if self.clauses[clause_id].clause()[prev_i_literal].sign()
+                        == self.assignments[id].unwrap()
+                    {
+                        continue;
+                    }
+                    let mut next_literal = None;
+                    for literal in clause.iter() {
+                        assert!(watched[0].id() == id || watched[1].id() == id);
+                        if literal.id() != id
+                            && self.assignments[literal.id()] != Some(!literal.sign())
+                            && (watched[0].id() != id || watched[1].id() != literal.id())
+                            && (watched[1].id() != id || watched[0].id() != literal.id())
+                        {
+                            next_literal = Some(literal);
                         }
                     }
-                    if !truth_of_clause {
-                        match unknowns.len() {
-                            0 => {
-                                // conflict
-                                let succeeded = self.try_backtrack();
-                                if succeeded {
-                                    continue 'l1;
-                                } else {
-                                    // UNSAT
-                                    return None;
-                                }
+                    if let Some(next_literal) = next_literal {
+                        let next_literal_id = next_literal.id();
+                        assert!(id != next_literal_id);
+                        assert!(watched[prev_i_literal_i].id() == id);
+                        assert!(watched[prev_i_literal_i].id() != next_literal_id);
+                        self.clauses[clause_id].watched[prev_i_literal_i] = *next_literal;
+                        self.watch[id] = self.watch[id]
+                            .iter()
+                            .filter(|&&x| x != clause_id)
+                            .cloned()
+                            .collect();
+                        self.watch[next_literal_id].push(clause_id);
+                    } else {
+                        let literal2 = watched[1 - prev_i_literal_i];
+                        let id2 = literal2.id();
+                        if self.assignments[id2].is_none() {
+                            self.assignments[id2] = Some(literal2.sign());
+                            self.dpll_stack.push((id2, AssignmentState::Propageted));
+                            unit_propagation_stack.push_back(id2);
+                        } else if self.assignments[id2].unwrap() != literal2.sign() {
+                            // conflict
+                            let succeeded = self.try_backtrack();
+                            if succeeded {
+                                continue 'l1;
+                            } else {
+                                // UNSAT
+                                return None;
                             }
-                            1 => {
-                                if ENABLE_WATCHED_LITERALS && clause.len() >= 2 {
-                                    panic!();
-                                }
-                                let t = unknowns[0];
-                                let id2 = t.id();
-                                self.assignments[id2] = Some(t.sign());
-                                self.dpll_stack.push((id2, AssignmentState::Propageted));
-                                unit_propagation_stack.push_back(id2);
-                            }
-                            _ => {}
                         }
                     }
                 }
