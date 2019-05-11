@@ -334,6 +334,15 @@ impl<'a> SatSolver<'a> {
         }
         true
     }
+    fn try_next_assignment(&mut self, i: usize) -> bool {
+        for k in i..self.problem.n_variables {
+            if self.assignments[k].is_none() {
+                self.dpll_stack.push((k, AssignmentState::First));
+                return true;
+            }
+        }
+        false
+    }
     fn try_backtrack(&mut self) -> bool {
         // conflict
         while let Some((k, state)) = self.dpll_stack.pop() {
@@ -375,20 +384,13 @@ impl<'a> SatSolver<'a> {
         }
 
         let n_variables = self.problem.n_variables;
-        {
-            let mut i = 0;
-            while i < n_variables && self.assignments[i].is_some() {
-                i += 1;
-            }
-            if i == n_variables {
-                // end(SAT)
-                assert_eq!(i, n_variables);
-                let xs: Vec<bool> = self.assignments.iter().map(|&x| x.unwrap()).collect();
-                let res = SatAssignments::new_from_vec(xs);
-                assert!(self.problem.check_assingemnt(&res));
-                return Some(res);
-            }
-            self.dpll_stack.push((i, AssignmentState::First));
+
+        if ! self.try_next_assignment(0) {
+            // end(SAT)
+            let xs: Vec<bool> = self.assignments.iter().map(|&x| x.unwrap()).collect();
+            let res = SatAssignments::new_from_vec(xs);
+            assert!(self.problem.check_assingemnt(&res));
+            return Some(res);
         }
         'l1: loop {
             // try
@@ -482,15 +484,9 @@ impl<'a> SatSolver<'a> {
                     }
                 }
             }
-            let mut i = i;
-            while i < n_variables && self.assignments[i].is_some() {
-                i += 1;
-            }
-            if i < n_variables {
-                self.dpll_stack.push((i, AssignmentState::First));
-            } else {
-                // end(SAT)
-                assert_eq!(i, n_variables);
+
+            if ! self.try_next_assignment(i) {
+                // SAT
                 let xs: Vec<bool> = self.assignments.iter().map(|&x| x.unwrap()).collect();
                 let res = SatAssignments::new_from_vec(xs);
                 assert!(self.problem.check_assingemnt(&res));
