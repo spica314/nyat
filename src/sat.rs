@@ -337,17 +337,11 @@ impl<'a> SatSolver<'a> {
         true
     }
     pub fn solve(&mut self) -> Option<SatAssignments> {
-        //let assignments = self.assign_unit_clause();
         let success = self.assign_unit_clause();
         if !success {
             // UNSAT
             return None;
         }
-        //assignments.as_ref()?;
-        //let mut assignments = assignments.unwrap();
-
-        //let mut watch: Vec<Vec<usize>> = vec![vec![]; self.problem.n_variables];
-        //let mut watched: Vec<Vec<bool>> = vec![];
         if ENABLE_WATCHED_LITERALS {
             for (clause_id, tagged_clause) in self.clauses.iter_mut().enumerate() {
                 let clause = tagged_clause.clause();
@@ -362,10 +356,8 @@ impl<'a> SatSolver<'a> {
                     *tagged_clause.watched_mut() = [clause[0], clause[0]];
                 }
             }
-            //assert_eq!(watched.len(), self.problem.clauses.num());
         }
 
-        //let mut stack: Vec<(usize, AssignmentState)> = vec![];
         let n_variables = self.problem.n_variables;
         {
             let mut i = 0;
@@ -426,11 +418,6 @@ impl<'a> SatSolver<'a> {
                         } else {
                             continue;
                         };
-                        /*
-                        if !watched[clause_id][prev_i_literal] {
-                            continue;
-                        }
-                        */
                         if self.clauses[clause_id].clause()[prev_i_literal].sign()
                             == self.assignments[id].unwrap()
                         {
