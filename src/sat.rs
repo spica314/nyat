@@ -336,6 +336,25 @@ impl<'a> SatSolver<'a> {
         }
         true
     }
+    fn try_backtrack(&mut self) -> bool {
+        // conflict
+        while let Some((k, state)) = self.dpll_stack.pop() {
+            match state {
+                AssignmentState::First => {
+                    self.dpll_stack.push((k, AssignmentState::Second));
+                    return true;
+                }
+                AssignmentState::Second => {
+                    self.assignments[k] = None;
+                }
+                AssignmentState::Propageted => {
+                    self.assignments[k] = None;
+                }
+            }
+        }
+        // UNSAT
+        false
+    }
     pub fn solve(&mut self) -> Option<SatAssignments> {
         let success = self.assign_unit_clause();
         if !success {
@@ -456,22 +475,13 @@ impl<'a> SatSolver<'a> {
                                 unit_propagation_stack.push_back(id2);
                             } else if self.assignments[id2].unwrap() != literal2.sign() {
                                 // conflict
-                                while let Some((k, state)) = self.dpll_stack.pop() {
-                                    match state {
-                                        AssignmentState::First => {
-                                            self.dpll_stack.push((k, AssignmentState::Second));
-                                            continue 'l1;
-                                        }
-                                        AssignmentState::Second => {
-                                            self.assignments[k] = None;
-                                        }
-                                        AssignmentState::Propageted => {
-                                            self.assignments[k] = None;
-                                        }
-                                    }
+                                let succeeded = self.try_backtrack();
+                                if succeeded {
+                                    continue 'l1;
+                                } else {
+                                    // UNSAT
+                                    return None;
                                 }
-                                // UNSAT
-                                return None;
                             }
                         }
                     }
@@ -501,22 +511,13 @@ impl<'a> SatSolver<'a> {
                         match unknowns.len() {
                             0 => {
                                 // conflict
-                                while let Some((k, state)) = self.dpll_stack.pop() {
-                                    match state {
-                                        AssignmentState::First => {
-                                            self.dpll_stack.push((k, AssignmentState::Second));
-                                            continue 'l1;
-                                        }
-                                        AssignmentState::Second => {
-                                            self.assignments[k] = None;
-                                        }
-                                        AssignmentState::Propageted => {
-                                            self.assignments[k] = None;
-                                        }
-                                    }
+                                let succeeded = self.try_backtrack();
+                                if succeeded {
+                                    continue 'l1;
+                                } else {
+                                    // UNSAT
+                                    return None;
                                 }
-                                // UNSAT
-                                return None;
                             }
                             1 => {
                                 if ENABLE_WATCHED_LITERALS && clause.len() >= 2 {
