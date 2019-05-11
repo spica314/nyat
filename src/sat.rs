@@ -362,13 +362,7 @@ impl<'a> SatSolver<'a> {
         // UNSAT
         false
     }
-    pub fn solve(&mut self) -> Option<SatAssignments> {
-        let success = self.assign_unit_clause();
-        if !success {
-            // UNSAT
-            return None;
-        }
-
+    fn init_watch(&mut self) {
         for (clause_id, tagged_clause) in self.clauses.iter_mut().enumerate() {
             let clause = tagged_clause.clause();
             if clause.len() >= 2 {
@@ -382,8 +376,15 @@ impl<'a> SatSolver<'a> {
                 *tagged_clause.watched_mut() = [clause[0], clause[0]];
             }
         }
+    }
+    pub fn solve(&mut self) -> Option<SatAssignments> {
+        let success = self.assign_unit_clause();
+        if !success {
+            // UNSAT
+            return None;
+        }
 
-        let n_variables = self.problem.n_variables;
+        self.init_watch();
 
         if ! self.try_next_assignment(0) {
             // end(SAT)
