@@ -284,10 +284,36 @@ enum AssignmentState {
     Propageted,
 }
 
+#[derive(Debug,Clone,Copy)]
+enum VariableState {
+    NotAssigned,
+    Assigned {
+        sign: bool,
+    }
+}
+
+impl VariableState {
+    fn new() -> VariableState {
+        VariableState::NotAssigned
+    }
+    fn is_not_assigned(&self) -> bool {
+        match self {
+            VariableState::NotAssigned => true,
+            _ => false,
+        }
+    }
+    fn sign(&self) -> Option<bool> {
+        match self {
+            VariableState::NotAssigned => None,
+            VariableState::Assigned{sign} => Some(*sign),
+        }
+    }
+}
+
 pub struct SatSolver<'a> {
     problem: &'a SatProblem,
     clauses: Vec<TaggedClause>,
-    assignments: Vec<Option<bool>>,
+    variables: Vec<VariableState>,
     watch: Vec<Vec<usize>>,
     dpll_stack: Vec<(usize, AssignmentState)>,
 }
@@ -302,7 +328,7 @@ impl<'a> SatSolver<'a> {
         SatSolver {
             problem,
             clauses,
-            assignments: vec![None; problem.n_variables],
+            variables: vec![VariableState::new(); problem.n_variables],
             watch: vec![vec![]; problem.n_variables],
             dpll_stack: vec![],
         }
@@ -313,10 +339,15 @@ impl<'a> SatSolver<'a> {
             'l1: for tagged_clause in &self.clauses {
                 let mut unknowns = vec![];
                 for literal in tagged_clause.clause() {
-                    if self.assignments[literal.id()].is_none() {
-                        unknowns.push(literal);
-                    } else if self.assignments[literal.id()] == Some(literal.sign()) {
-                        continue 'l1;
+                    match self.variables[literal.id()] {
+                        VariableState::NotAssigned => {
+                            unknowns.push(literal);
+                        }
+                        VariableState::Assigned{sign} => {
+                            if sign == literal.sign() {
+                                continue 'l1;
+                            }
+                        }
                     }
                 }
                 if unknowns.is_empty() {
@@ -324,7 +355,7 @@ impl<'a> SatSolver<'a> {
                 }
                 if unknowns.len() == 1 {
                     let literal = unknowns[0];
-                    self.assignments[literal.id()] = Some(literal.sign());
+                    self.variables[literal.id()] = VariableState::Assigned{sign: literal.sign()};
                     updated = true;
                 }
             }
@@ -336,7 +367,7 @@ impl<'a> SatSolver<'a> {
     }
     fn try_next_assignment(&mut self, i: usize) -> bool {
         for k in i..self.problem.n_variables {
-            if self.assignments[k].is_none() {
+            if self.variables[k].is_not_assigned() {
                 self.dpll_stack.push((k, AssignmentState::First));
                 return true;
             }
@@ -352,10 +383,10 @@ impl<'a> SatSolver<'a> {
                     return true;
                 }
                 AssignmentState::Second => {
-                    self.assignments[k] = None;
+                    self.variables[k] = VariableState::NotAssigned;
                 }
                 AssignmentState::Propageted => {
-                    self.assignments[k] = None;
+                    self.variables[k] = VariableState::NotAssigned;
                 }
             }
         }
@@ -388,7 +419,7 @@ impl<'a> SatSolver<'a> {
 
         if ! self.try_next_assignment(0) {
             // end(SAT)
-            let xs: Vec<bool> = self.assignments.iter().map(|&x| x.unwrap()).collect();
+            let xs: Vec<bool> = self.variables.iter().map(|&x| x.sign().unwrap()).collect();
             let res = SatAssignments::new_from_vec(xs);
             assert!(self.problem.check_assingemnt(&res));
             return Some(res);
@@ -399,10 +430,11 @@ impl<'a> SatSolver<'a> {
             let i = self.dpll_stack.last().unwrap().0;
             match self.dpll_stack.last().unwrap().1 {
                 AssignmentState::First => {
-                    self.assignments[i] = Some(false);
+                    self.variables[i] = VariableState::Assigned{sign:false};
                 }
                 AssignmentState::Second => {
-                    self.assignments[i] = Some(!self.assignments[i].unwrap());
+                    let old_sign = self.variables[i].sign().unwrap();
+                    self.variables[i] = VariableState::Assigned{sign: !old_sign};
                 }
                 AssignmentState::Propageted => {
                     panic!();
@@ -438,7 +470,7 @@ impl<'a> SatSolver<'a> {
                         continue;
                     };
                     if self.clauses[clause_id].clause()[prev_i_literal].sign()
-                        == self.assignments[id].unwrap()
+                        == self.variables[id].sign().unwrap()
                     {
                         continue;
                     }
@@ -446,7 +478,7 @@ impl<'a> SatSolver<'a> {
                     for literal in clause.iter() {
                         assert!(watched[0].id() == id || watched[1].id() == id);
                         if literal.id() != id
-                            && self.assignments[literal.id()] != Some(!literal.sign())
+                            && self.variables[literal.id()].sign() != Some(!literal.sign())
                             && (watched[0].id() != id || watched[1].id() != literal.id())
                             && (watched[1].id() != id || watched[0].id() != literal.id())
                         {
@@ -468,11 +500,11 @@ impl<'a> SatSolver<'a> {
                     } else {
                         let literal2 = watched[1 - prev_i_literal_i];
                         let id2 = literal2.id();
-                        if self.assignments[id2].is_none() {
-                            self.assignments[id2] = Some(literal2.sign());
+                        if self.variables[id2].is_not_assigned() {
+                            self.variables[id2] = VariableState::Assigned{sign: literal2.sign()};
                             self.dpll_stack.push((id2, AssignmentState::Propageted));
                             unit_propagation_stack.push_back(id2);
-                        } else if self.assignments[id2].unwrap() != literal2.sign() {
+                        } else if self.variables[id2].sign().unwrap() != literal2.sign() {
                             // conflict
                             let succeeded = self.try_backtrack();
                             if succeeded {
@@ -488,7 +520,7 @@ impl<'a> SatSolver<'a> {
 
             if ! self.try_next_assignment(i) {
                 // SAT
-                let xs: Vec<bool> = self.assignments.iter().map(|&x| x.unwrap()).collect();
+                let xs: Vec<bool> = self.variables.iter().map(|&x| x.sign().unwrap()).collect();
                 let res = SatAssignments::new_from_vec(xs);
                 assert!(self.problem.check_assingemnt(&res));
                 return Some(res);
