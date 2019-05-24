@@ -394,6 +394,27 @@ impl<'a> SatSolver<'a> {
             decision_level: 0,
         }
     }
+    fn first_signs(&self) -> Vec<bool> {
+        let mut count = vec![0; self.problem.n_variables];
+        let mut total = vec![0; self.problem.n_variables];
+        for clause in &self.clauses {
+            for literal in clause.clause().iter() {
+                if literal.sign() {
+                    count[literal.id()] += 1;
+                }
+                total[literal.id()] += 1;
+            }
+        }
+        let mut res = vec![];
+        for i in 0..self.problem.n_variables {
+            if count[i] > total[i] / 2 {
+                res.push(false);
+            } else {
+                res.push(true);
+            }
+        }
+        res
+    }
     fn learn_clause(&mut self, clause: &Clause) {
         let mut assigned_literals = vec![];
         let mut not_assigned_literals = vec![];
@@ -592,6 +613,7 @@ impl<'a> SatSolver<'a> {
         }
 
         self.init_watch();
+        let first_signs = self.first_signs();
 
         if !self.try_next_assignment(0) {
             // end(SAT)
@@ -607,7 +629,7 @@ impl<'a> SatSolver<'a> {
             match self.dpll_stack.last().unwrap().1 {
                 AssignmentState::First => {
                     self.variables[i] = VariableState::Assigned {
-                        sign: false,
+                        sign: first_signs[i],
                         decision_level: self.decision_level,
                     };
                 }
