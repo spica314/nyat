@@ -53,9 +53,10 @@ impl Clause {
     }
     fn to_dimacs(&self) -> String {
         let mut res = String::new();
-        res.push_str(&format!("{}", self.0[0].to_dimacs()));
+        res.push_str(&self.0[0].to_dimacs().to_string());
         for i in 1..self.0.len() {
-            res.push_str(&format!(" {}", self.0[i].to_dimacs()));
+            res.push(' ');
+            res.push_str(&self.0[i].to_dimacs().to_string());
         }
         res
     }
@@ -359,7 +360,7 @@ impl VariableState {
             VariableState::NotAssigned => None,
             VariableState::Assigned {
                 sign,
-                decision_level: _,
+                ..
             } => Some(*sign),
         }
     }
@@ -367,8 +368,8 @@ impl VariableState {
         match self {
             VariableState::NotAssigned => None,
             VariableState::Assigned {
-                sign: _,
                 decision_level,
+                ..
             } => Some(*decision_level),
         }
     }
@@ -408,8 +409,8 @@ impl<'a> SatSolver<'a> {
                     not_assigned_literals.push(literal);
                 }
                 VariableState::Assigned {
-                    sign,
                     decision_level,
+                    ..
                 } => {
                     assigned_literals.push((literal, decision_level));
                 }
@@ -423,7 +424,7 @@ impl<'a> SatSolver<'a> {
         } else if not_assigned_literals.len() == 1 {
             if clause.len() >= 2 {
                 let literal_1 = not_assigned_literals[0];
-                assert!(assigned_literals.len() >= 1);
+                assert!(!assigned_literals.is_empty());
                 assigned_literals.sort_by(|&x, &y| x.1.cmp(&y.1));
                 let literal_2 = assigned_literals.last().unwrap().0;
                 (literal_1, literal_2)
@@ -558,7 +559,7 @@ impl<'a> SatSolver<'a> {
                                             self.decision_level -= 1;
                                         }
                                     }
-                                    AssignmentState::Propageted(clause_id) => {
+                                    AssignmentState::Propageted(_) => {
                                         self.variables[k] = VariableState::NotAssigned;
                                     }
                                 }
@@ -626,7 +627,7 @@ impl<'a> SatSolver<'a> {
                         decision_level: self.decision_level,
                     };
                 }
-                AssignmentState::Propageted(clause_id) => {
+                AssignmentState::Propageted(_) => {
                     panic!();
                 }
             }
