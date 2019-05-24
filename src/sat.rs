@@ -14,6 +14,17 @@ impl Literal {
     fn sign(&self) -> bool {
         self.sign
     }
+    fn to_dimacs(&self) -> String {
+        format!(
+            "{}",
+            if self.sign {
+                self.id as i64 + 1
+            } else {
+                -(self.id as i64 + 1)
+            }
+        )
+        .to_string()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -39,6 +50,14 @@ impl Clause {
             }
         }
         None
+    }
+    fn to_dimacs(&self) -> String {
+        let mut res = String::new();
+        res.push_str(&format!("{}", self.0[0].to_dimacs()));
+        for i in 1..self.0.len() {
+            res.push_str(&format!(" {}", self.0[i].to_dimacs()));
+        }
+        res
     }
     fn resolution(left: &Clause, right: &Clause) -> Option<Clause> {
         let mut left_valids = vec![true; left.0.len()];
@@ -306,6 +325,9 @@ impl TaggedClause {
     }
     fn watched_mut(&mut self) -> &mut [Literal; 2] {
         &mut self.watched
+    }
+    fn to_dimacs(&self) -> String {
+        self.clause.to_dimacs()
     }
 }
 
