@@ -3,6 +3,7 @@ matrix:
   include:
     - rust: nightly
       script:
+        - rustup component add rustfmt
         - cargo fmt --all -- --check
         - cargo build --verbose --all
         - cargo test --verbose --all
