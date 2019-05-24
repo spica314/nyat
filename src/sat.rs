@@ -289,6 +289,7 @@ enum VariableState {
     NotAssigned,
     Assigned {
         sign: bool,
+        decision_level: usize,
     }
 }
 
@@ -305,7 +306,13 @@ impl VariableState {
     fn sign(&self) -> Option<bool> {
         match self {
             VariableState::NotAssigned => None,
-            VariableState::Assigned{sign} => Some(*sign),
+            VariableState::Assigned{sign,decision_level} => Some(*sign),
+        }
+    }
+    fn decision_level(&self) -> Option<usize> {
+        match self {
+            VariableState::NotAssigned => None,
+            VariableState::Assigned{sign,decision_level} => Some(*decision_level),
         }
     }
 }
@@ -316,6 +323,7 @@ pub struct SatSolver<'a> {
     variables: Vec<VariableState>,
     watch: Vec<Vec<usize>>,
     dpll_stack: Vec<(usize, AssignmentState)>,
+    decision_level: usize,
 }
 
 impl<'a> SatSolver<'a> {
@@ -331,6 +339,7 @@ impl<'a> SatSolver<'a> {
             variables: vec![VariableState::new(); problem.n_variables],
             watch: vec![vec![]; problem.n_variables],
             dpll_stack: vec![],
+            decision_level: 0,
         }
     }
     pub fn assign_unit_clause(&mut self) -> bool {
@@ -339,14 +348,14 @@ impl<'a> SatSolver<'a> {
             'l1: for tagged_clause in &self.clauses {
                 let mut unknowns = vec![];
                 for literal in tagged_clause.clause() {
-                    match self.variables[literal.id()] {
-                        VariableState::NotAssigned => {
-                            unknowns.push(literal);
-                        }
-                        VariableState::Assigned{sign} => {
+                    match self.variables[literal.id()].sign() {
+                        Some(sign) => {
                             if sign == literal.sign() {
                                 continue 'l1;
                             }
+                        }
+                        None => {
+                            unknowns.push(literal);
                         }
                     }
                 }
@@ -355,7 +364,7 @@ impl<'a> SatSolver<'a> {
                 }
                 if unknowns.len() == 1 {
                     let literal = unknowns[0];
-                    self.variables[literal.id()] = VariableState::Assigned{sign: literal.sign()};
+                    self.variables[literal.id()] = VariableState::Assigned{sign: literal.sign(), decision_level: self.decision_level};
                     updated = true;
                 }
             }
@@ -369,6 +378,7 @@ impl<'a> SatSolver<'a> {
         for k in i..self.problem.n_variables {
             if self.variables[k].is_not_assigned() {
                 self.dpll_stack.push((k, AssignmentState::First));
+                self.decision_level += 1;
                 return true;
             }
         }
@@ -384,6 +394,7 @@ impl<'a> SatSolver<'a> {
                 }
                 AssignmentState::Second => {
                     self.variables[k] = VariableState::NotAssigned;
+                    self.decision_level -= 1;
                 }
                 AssignmentState::Propageted => {
                     self.variables[k] = VariableState::NotAssigned;
@@ -430,11 +441,11 @@ impl<'a> SatSolver<'a> {
             let i = self.dpll_stack.last().unwrap().0;
             match self.dpll_stack.last().unwrap().1 {
                 AssignmentState::First => {
-                    self.variables[i] = VariableState::Assigned{sign:false};
+                    self.variables[i] = VariableState::Assigned{sign:false, decision_level: self.decision_level};
                 }
                 AssignmentState::Second => {
                     let old_sign = self.variables[i].sign().unwrap();
-                    self.variables[i] = VariableState::Assigned{sign: !old_sign};
+                    self.variables[i] = VariableState::Assigned{sign: !old_sign, decision_level: self.decision_level};
                 }
                 AssignmentState::Propageted => {
                     panic!();
@@ -501,7 +512,7 @@ impl<'a> SatSolver<'a> {
                         let literal2 = watched[1 - prev_i_literal_i];
                         let id2 = literal2.id();
                         if self.variables[id2].is_not_assigned() {
-                            self.variables[id2] = VariableState::Assigned{sign: literal2.sign()};
+                            self.variables[id2] = VariableState::Assigned{sign: literal2.sign(), decision_level: self.decision_level};
                             self.dpll_stack.push((id2, AssignmentState::Propageted));
                             unit_propagation_stack.push_back(id2);
                         } else if self.variables[id2].sign().unwrap() != literal2.sign() {
