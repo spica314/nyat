@@ -407,33 +407,37 @@ impl<'a> SatSolver<'a> {
                 VariableState::NotAssigned => {
                     not_assigned_literals.push(literal);
                 }
-                VariableState::Assigned{sign,decision_level} => {
-                    assigned_literals.push((literal,decision_level));
+                VariableState::Assigned {
+                    sign,
+                    decision_level,
+                } => {
+                    assigned_literals.push((literal, decision_level));
                 }
             }
         }
         let clause_id = self.clauses.len();
-        let (literal_1,literal_2) = if not_assigned_literals.len() >= 2 {
+        let (literal_1, literal_2) = if not_assigned_literals.len() >= 2 {
             let literal_1 = not_assigned_literals[0];
             let literal_2 = not_assigned_literals[1];
-            (literal_1,literal_2)
-        }
-        else if not_assigned_literals.len() == 1 {
+            (literal_1, literal_2)
+        } else if not_assigned_literals.len() == 1 {
             if clause.len() >= 2 {
                 let literal_1 = not_assigned_literals[0];
                 assert!(assigned_literals.len() >= 1);
-                assigned_literals.sort_by(|&x,&y| x.1.cmp(&y.1));
+                assigned_literals.sort_by(|&x, &y| x.1.cmp(&y.1));
                 let literal_2 = assigned_literals.last().unwrap().0;
-                (literal_1,literal_2)
-            }
-            else {
+                (literal_1, literal_2)
+            } else {
                 (clause[0], clause[0])
             }
-        }
-        else {
+        } else {
             panic!();
         };
-        self.clauses.push(TaggedClause::new(clause.clone(), true, [literal_1, literal_2]));
+        self.clauses.push(TaggedClause::new(
+            clause.clone(),
+            true,
+            [literal_1, literal_2],
+        ));
         self.watch[literal_1.id()].push(clause_id);
         self.watch[literal_2.id()].push(clause_id);
     }
