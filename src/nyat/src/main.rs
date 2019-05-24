@@ -1,4 +1,4 @@
-use nyat::sat::*;
+use nyat_sat::sat::*;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
