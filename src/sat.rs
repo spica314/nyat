@@ -358,19 +358,13 @@ impl VariableState {
     fn sign(&self) -> Option<bool> {
         match self {
             VariableState::NotAssigned => None,
-            VariableState::Assigned {
-                sign,
-                ..
-            } => Some(*sign),
+            VariableState::Assigned { sign, .. } => Some(*sign),
         }
     }
     fn decision_level(&self) -> Option<usize> {
         match self {
             VariableState::NotAssigned => None,
-            VariableState::Assigned {
-                decision_level,
-                ..
-            } => Some(*decision_level),
+            VariableState::Assigned { decision_level, .. } => Some(*decision_level),
         }
     }
 }
@@ -408,10 +402,7 @@ impl<'a> SatSolver<'a> {
                 VariableState::NotAssigned => {
                     not_assigned_literals.push(literal);
                 }
-                VariableState::Assigned {
-                    decision_level,
-                    ..
-                } => {
+                VariableState::Assigned { decision_level, .. } => {
                     assigned_literals.push((literal, decision_level));
                 }
             }
