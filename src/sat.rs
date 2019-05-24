@@ -40,6 +40,38 @@ impl Clause {
         }
         None
     }
+    fn resolution(left: &Clause, right: &Clause) -> Option<Clause> {
+        let mut left_valids = vec![true; left.0.len()];
+        let mut right_valids = vec![true; right.0.len()];
+        let mut succeeded = false;
+        for i in 0..left.0.len() {
+            for k in 0..right.len() {
+                if left[i].id() == right[k].id() && left[i].sign() != right[k].sign() {
+                    left_valids[i] = false;
+                    right_valids[k] = false;
+                    succeeded = true;
+                } else if left[i].id() == right[k].id() {
+                    right_valids[k] = false;
+                }
+            }
+        }
+        if succeeded {
+            let mut res = Clause::new();
+            for i in 0..left.0.len() {
+                if left_valids[i] {
+                    res.push(left[i]);
+                }
+            }
+            for k in 0..right.0.len() {
+                if right_valids[k] {
+                    res.push(right[k]);
+                }
+            }
+            Some(res)
+        } else {
+            None
+        }
+    }
 }
 
 use std::convert::AsRef;
