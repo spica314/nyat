@@ -1,11 +1,24 @@
 language: rust
-os:
-  - linux
-  - osx
-  - windows
 matrix:
   include:
-    - rust: nightly
+    - os: linux
+      rust: nightly
+      script:
+        - rustup component add rustfmt
+        - cargo fmt --all -- --check
+        - cargo build --verbose --all
+        - cargo test --verbose --all
+        - cargo test --release --verbose --all -- --ignored
+    - os: osx
+      rust: nightly
+      script:
+        - rustup component add rustfmt
+        - cargo fmt --all -- --check
+        - cargo build --verbose --all
+        - cargo test --verbose --all
+        - cargo test --release --verbose --all -- --ignored
+    - os: windows
+      rust: nightly
       script:
         - rustup component add rustfmt
         - cargo fmt --all -- --check
