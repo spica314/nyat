@@ -284,13 +284,10 @@ enum AssignmentState {
     Propageted,
 }
 
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug, Clone, Copy)]
 enum VariableState {
     NotAssigned,
-    Assigned {
-        sign: bool,
-        decision_level: usize,
-    }
+    Assigned { sign: bool, decision_level: usize },
 }
 
 impl VariableState {
@@ -306,13 +303,19 @@ impl VariableState {
     fn sign(&self) -> Option<bool> {
         match self {
             VariableState::NotAssigned => None,
-            VariableState::Assigned{sign,decision_level} => Some(*sign),
+            VariableState::Assigned {
+                sign,
+                decision_level: _,
+            } => Some(*sign),
         }
     }
     fn decision_level(&self) -> Option<usize> {
         match self {
             VariableState::NotAssigned => None,
-            VariableState::Assigned{sign,decision_level} => Some(*decision_level),
+            VariableState::Assigned {
+                sign: _,
+                decision_level,
+            } => Some(*decision_level),
         }
     }
 }
@@ -364,7 +367,10 @@ impl<'a> SatSolver<'a> {
                 }
                 if unknowns.len() == 1 {
                     let literal = unknowns[0];
-                    self.variables[literal.id()] = VariableState::Assigned{sign: literal.sign(), decision_level: self.decision_level};
+                    self.variables[literal.id()] = VariableState::Assigned {
+                        sign: literal.sign(),
+                        decision_level: self.decision_level,
+                    };
                     updated = true;
                 }
             }
@@ -428,7 +434,7 @@ impl<'a> SatSolver<'a> {
 
         self.init_watch();
 
-        if ! self.try_next_assignment(0) {
+        if !self.try_next_assignment(0) {
             // end(SAT)
             let xs: Vec<bool> = self.variables.iter().map(|&x| x.sign().unwrap()).collect();
             let res = SatAssignments::new_from_vec(xs);
@@ -441,11 +447,17 @@ impl<'a> SatSolver<'a> {
             let i = self.dpll_stack.last().unwrap().0;
             match self.dpll_stack.last().unwrap().1 {
                 AssignmentState::First => {
-                    self.variables[i] = VariableState::Assigned{sign:false, decision_level: self.decision_level};
+                    self.variables[i] = VariableState::Assigned {
+                        sign: false,
+                        decision_level: self.decision_level,
+                    };
                 }
                 AssignmentState::Second => {
                     let old_sign = self.variables[i].sign().unwrap();
-                    self.variables[i] = VariableState::Assigned{sign: !old_sign, decision_level: self.decision_level};
+                    self.variables[i] = VariableState::Assigned {
+                        sign: !old_sign,
+                        decision_level: self.decision_level,
+                    };
                 }
                 AssignmentState::Propageted => {
                     panic!();
@@ -512,7 +524,10 @@ impl<'a> SatSolver<'a> {
                         let literal2 = watched[1 - prev_i_literal_i];
                         let id2 = literal2.id();
                         if self.variables[id2].is_not_assigned() {
-                            self.variables[id2] = VariableState::Assigned{sign: literal2.sign(), decision_level: self.decision_level};
+                            self.variables[id2] = VariableState::Assigned {
+                                sign: literal2.sign(),
+                                decision_level: self.decision_level,
+                            };
                             self.dpll_stack.push((id2, AssignmentState::Propageted));
                             unit_propagation_stack.push_back(id2);
                         } else if self.variables[id2].sign().unwrap() != literal2.sign() {
@@ -529,7 +544,7 @@ impl<'a> SatSolver<'a> {
                 }
             }
 
-            if ! self.try_next_assignment(i) {
+            if !self.try_next_assignment(i) {
                 // SAT
                 let xs: Vec<bool> = self.variables.iter().map(|&x| x.sign().unwrap()).collect();
                 let res = SatAssignments::new_from_vec(xs);
