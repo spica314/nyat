@@ -1,1 +1,3 @@
+# to enable hooks, `git config core.hooksPath hooks`
+
 cargo fmt --all -- --check
