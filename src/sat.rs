@@ -335,7 +335,7 @@ impl TaggedClause {
 enum AssignmentState {
     First,
     Second,
-    Propageted,
+    Propageted(usize),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -486,8 +486,9 @@ impl<'a> SatSolver<'a> {
         }
         false
     }
-    fn try_backtrack(&mut self) -> bool {
+    fn try_backtrack(&mut self, clause_id: usize) -> bool {
         // conflict
+        let mut clause = self.clauses[clause_id].clause().clone();
         while let Some((k, state)) = self.dpll_stack.pop() {
             match state {
                 AssignmentState::First => {
@@ -498,8 +499,78 @@ impl<'a> SatSolver<'a> {
                     self.variables[k] = VariableState::NotAssigned;
                     self.decision_level -= 1;
                 }
-                AssignmentState::Propageted => {
+                AssignmentState::Propageted(clause_id) => {
                     self.variables[k] = VariableState::NotAssigned;
+                    let t = Clause::resolution(&clause, &self.clauses[clause_id].clause());
+                    if let Some(new_clause) = t {
+                        clause = new_clause;
+                        let num_current_decision_level = {
+                            let mut num_current_decision_level = 0;
+                            for i in 0..clause.len() {
+                                match self.variables[clause[i].id()].decision_level() {
+                                    Some(level) => {
+                                        if level == self.decision_level {
+                                            num_current_decision_level += 1;
+                                        }
+                                    }
+                                    None => {
+                                        num_current_decision_level += 1;
+                                    }
+                                }
+                            }
+                            num_current_decision_level
+                        };
+                        if num_current_decision_level == 1 {
+                            let second_decision_level = {
+                                let mut second_decision_level = 0;
+                                for i in 0..clause.len() {
+                                    if let Some(level) =
+                                        self.variables[clause[i].id()].decision_level()
+                                    {
+                                        if level != self.decision_level
+                                            && level > second_decision_level
+                                        {
+                                            second_decision_level = level;
+                                        }
+                                    }
+                                }
+                                second_decision_level
+                            };
+                            while let Some((k, state)) = self.dpll_stack.pop() {
+                                match state {
+                                    AssignmentState::First => {
+                                        if self.decision_level <= second_decision_level {
+                                            self.dpll_stack.push((k, AssignmentState::First));
+                                            self.learn_clause(&clause);
+                                            return true;
+                                        } else {
+                                            self.variables[k] = VariableState::NotAssigned;
+                                            self.decision_level -= 1;
+                                        }
+                                    }
+                                    AssignmentState::Second => {
+                                        if self.decision_level <= second_decision_level {
+                                            self.dpll_stack.push((k, AssignmentState::Second));
+                                            self.learn_clause(&clause);
+                                            return true;
+                                        } else {
+                                            self.variables[k] = VariableState::NotAssigned;
+                                            self.decision_level -= 1;
+                                        }
+                                    }
+                                    AssignmentState::Propageted(clause_id) => {
+                                        self.variables[k] = VariableState::NotAssigned;
+                                    }
+                                }
+                            }
+                            assert_eq!(second_decision_level, 0);
+                            self.learn_clause(&clause);
+                            self.assign_unit_clause();
+                            let t = self.try_next_assignment(0);
+                            assert!(t);
+                            return true;
+                        }
+                    }
                 }
             }
         }
@@ -555,7 +626,7 @@ impl<'a> SatSolver<'a> {
                         decision_level: self.decision_level,
                     };
                 }
-                AssignmentState::Propageted => {
+                AssignmentState::Propageted(clause_id) => {
                     panic!();
                 }
             }
@@ -624,11 +695,12 @@ impl<'a> SatSolver<'a> {
                                 sign: literal2.sign(),
                                 decision_level: self.decision_level,
                             };
-                            self.dpll_stack.push((id2, AssignmentState::Propageted));
+                            self.dpll_stack
+                                .push((id2, AssignmentState::Propageted(clause_id)));
                             unit_propagation_stack.push_back(id2);
                         } else if self.variables[id2].sign().unwrap() != literal2.sign() {
                             // conflict
-                            let succeeded = self.try_backtrack();
+                            let succeeded = self.try_backtrack(clause_id);
                             if succeeded {
                                 continue 'l1;
                             } else {
