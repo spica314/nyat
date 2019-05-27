@@ -674,7 +674,7 @@ impl<'a> SatSolver<'a> {
             unit_propagation_stack.push_back(i);
             use std::collections::HashSet;
             let mut visited = HashSet::new();
-            while let Some(id) = unit_propagation_stack.pop_front() {
+            while let Some(id) = unit_propagation_stack.pop_back() {
                 if visited.contains(&id) {
                     continue;
                 }
