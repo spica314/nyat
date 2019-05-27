@@ -437,8 +437,11 @@ impl<'a> SatSolver<'a> {
             if clause.len() >= 2 {
                 let literal_1 = not_assigned_literals[0];
                 assert!(!assigned_literals.is_empty());
-                assigned_literals.sort_by(|&x, &y| x.1.cmp(&y.1));
-                let literal_2 = assigned_literals.last().unwrap().0;
+                let literal_2 = assigned_literals
+                    .iter()
+                    .max_by(|&x, &y| x.1.cmp(&y.1))
+                    .unwrap()
+                    .0;
                 (literal_1, literal_2)
             } else {
                 (clause[0], clause[0])
