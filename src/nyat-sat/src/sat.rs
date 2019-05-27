@@ -649,9 +649,9 @@ impl<'a> SatSolver<'a> {
             use std::collections::VecDeque;
             let mut unit_propagation_stack = VecDeque::new();
             unit_propagation_stack.push_back(i);
-            use std::collections::BTreeSet;
-            let mut visited = BTreeSet::new();
-            while let Some(id) = unit_propagation_stack.pop_back() {
+            use std::collections::HashSet;
+            let mut visited = HashSet::new();
+            while let Some(id) = unit_propagation_stack.pop_front() {
                 if visited.contains(&id) {
                     continue;
                 }
