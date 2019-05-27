@@ -5,4 +5,6 @@ authors = ["Masato Mouri <13274198+mouri111@users.noreply.github.com>"]
 edition = "2018"
 
 [dependencies]
+log = "0.4.0"
+env_logger = "0.6.1"
 nyat-sat = { path = "../nyat-sat" }

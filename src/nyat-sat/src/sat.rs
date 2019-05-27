@@ -376,6 +376,7 @@ pub struct SatSolver<'a> {
     watch: Vec<Vec<usize>>,
     dpll_stack: Vec<(usize, AssignmentState)>,
     decision_level: usize,
+    conflict_count: usize,
 }
 
 impl<'a> SatSolver<'a> {
@@ -392,6 +393,7 @@ impl<'a> SatSolver<'a> {
             watch: vec![vec![]; problem.n_variables],
             dpll_stack: vec![],
             decision_level: 0,
+            conflict_count: 0,
         }
     }
     fn first_signs(&self) -> Vec<bool> {
@@ -503,6 +505,7 @@ impl<'a> SatSolver<'a> {
         false
     }
     fn try_backtrack(&mut self, clause_id: usize) -> bool {
+        self.conflict_count += 1;
         // conflict
         let mut clause = self.clauses[clause_id].clause().clone();
         while let Some((k, state)) = self.dpll_stack.pop() {
@@ -552,6 +555,13 @@ impl<'a> SatSolver<'a> {
                                 }
                                 second_decision_level
                             };
+                            info!(
+                                "backtrack, clause = {:?}, first_level = {}, second_level = {}",
+                                clause.to_dimacs(),
+                                self.decision_level,
+                                second_decision_level
+                            );
+                            assert!(self.decision_level > second_decision_level);
                             while let Some((k, state)) = self.dpll_stack.pop() {
                                 match state {
                                     AssignmentState::First => {
@@ -625,9 +635,19 @@ impl<'a> SatSolver<'a> {
             assert!(self.problem.check_assingemnt(&res));
             return Some(res);
         }
+        let mut loop_count = 0;
         'l1: loop {
+            if loop_count % 100 == 0 {
+                warn!(
+                    "clauses.len() = {}, conflict_count = {}",
+                    self.clauses.len(),
+                    self.conflict_count
+                );
+            }
+            loop_count += 1;
             // try
             assert!(!self.dpll_stack.is_empty());
+            info!("dpll_stack_top: {:?}", self.dpll_stack.last());
             let i = self.dpll_stack.last().unwrap().0;
             match self.dpll_stack.last().unwrap().1 {
                 AssignmentState::First => {
@@ -659,6 +679,7 @@ impl<'a> SatSolver<'a> {
                     continue;
                 }
                 visited.insert(id);
+                info!("propagated: {}", id);
 
                 let visit_clause_ids: Vec<usize> = self.watch[id].clone();
                 for &clause_id in &visit_clause_ids {
